@@ -1,0 +1,11 @@
+defaults:
+  - _self_
+  - dataset: cifar10_dir0.5
+  - model: resnet10
+  - algorithm: fedavg
+  - task: image_classif
+  # - overrides/gpu  # optional, can be disabled with ~gpu
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

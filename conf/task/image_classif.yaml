@@ -1,0 +1,7 @@
+num_classes: 10
+loss:
+  _target_: torch.nn.CrossEntropyLoss
+metrics:
+  top1:
+    _target_: src.utils.metrics.TopKAccuracy
+    k: 1

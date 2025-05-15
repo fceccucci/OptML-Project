@@ -18,7 +18,7 @@ try:
     # FedLab ships handy partition functions
     from fedlab.utils.dataset.functional import (
         hetero_dir_partition as dirichlet_partition,
-        homo_partition       as iid_partition,
+        homo_partition as iid_partition,
     )
 except ImportError as e:
     raise ImportError(
@@ -50,55 +50,59 @@ def build_dataloaders(cfg) -> Tuple[List[DataLoader], List[DataLoader]]:
         Lists have length = num_clients and keep the same order so
         `trainloaders[cid]` is the peer of `valloaders[cid]`.
     """
-    root        = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
-    batch_size  = getattr(cfg, "batch_size", 32)
+    root = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
+    batch_size = getattr(cfg, "batch_size", 32)
     num_clients = cfg.num_clients
 
-    # 1) load the raw (whole) torch-vision dataset ---------------------------
+    # 1) Load the raw (whole) torchvision dataset ---------------------------
     tfm = transforms.Compose([transforms.ToTensor()])
     name = cfg.name.lower()
+
     if name == "cifar10":
-        train_ds = torchvision.datasets.CIFAR10(root, train=True,  download=True, transform=tfm)
-        test_ds  = torchvision.datasets.CIFAR10(root, train=False, download=True, transform=tfm)
+        train_ds = torchvision.datasets.CIFAR10(root, train=True, download=True, transform=tfm)
+        test_ds = torchvision.datasets.CIFAR10(root, train=False, download=True, transform=tfm)
     elif name == "mnist":
-        train_ds = torchvision.datasets.MNIST(root, train=True,  download=True, transform=tfm)
-        test_ds  = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
+        train_ds = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
+        test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
     else:
         raise ValueError(f"Unsupported dataset: {cfg.name}")
 
-    # 2) build a label list for partitioning ---------------------------------
-    labels = [lbl for _, lbl in train_ds]
+    # 2) Build separate label lists for partitioning -------------------------
+    train_labels = [lbl for _, lbl in train_ds]
+    test_labels = [lbl for _, lbl in test_ds]
 
-    # 3) slice indices for every client --------------------------------------
-    strat  = cfg.partition.strategy.lower()
-    alpha  = getattr(cfg.partition, "alpha", 0.5)
+    # 3) Slice indices for each client separately ----------------------------
+    strat = cfg.partition.strategy.lower()
+    alpha = getattr(cfg.partition, "alpha", 0.5)
 
     if strat == "dirichlet":
-        num_classes = len(set(labels))   
-        # FedLab signature: hetero_dir_partition(targets, num_clients, dir_alpha, ...)
-        client_idcs = dirichlet_partition(labels, num_clients, num_classes, alpha)
+        num_classes = len(set(train_labels))
+        client_train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
+        client_test_idcs = dirichlet_partition(test_labels, num_clients, num_classes, alpha)
     elif strat == "iid":
-        client_idcs = iid_partition(labels, num_clients)
+        client_train_idcs = iid_partition(train_labels, num_clients)
+        client_test_idcs = iid_partition(test_labels, num_clients)
     else:
         raise ValueError(f"Unknown partition strategy: {cfg.partition.strategy}")
 
-
-    # 4) wrap in DataLoaders --------------------------------------------------
+    # 4) Wrap in DataLoaders with separate train and validation subsets ------
     trainloaders, valloaders = [], []
+
     for cid in range(num_clients):
         tl = DataLoader(
-            Subset(train_ds, client_idcs[cid]),
+            Subset(train_ds, client_train_idcs[cid]),
             batch_size=batch_size,
             shuffle=True,
             num_workers=2,
         )
-        # keep validation distribution ≈ training distribution for this client
+
         vl = DataLoader(
-            Subset(test_ds, client_idcs[cid]),
+            Subset(test_ds, client_test_idcs[cid]),
             batch_size=batch_size,
             shuffle=False,
             num_workers=2,
         )
+
         trainloaders.append(tl)
         valloaders.append(vl)
 

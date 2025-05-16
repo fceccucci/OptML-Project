@@ -64,6 +64,9 @@ def build_dataloaders(cfg) -> Tuple[List[DataLoader], List[DataLoader]]:
     elif name == "mnist":
         train_ds = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
         test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
+        tfm = transforms.Compose([
+        transforms.Grayscale(num_output_channels=3),  # Fake RGB
+        transforms.ToTensor(),])
     else:
         raise ValueError(f"Unsupported dataset: {cfg.name}")
 

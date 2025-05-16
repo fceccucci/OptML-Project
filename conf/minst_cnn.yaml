@@ -3,7 +3,7 @@
 dataset:
   _target_: src.dataset_factory.get_dataset
   name: mnist
-  num_clients: 20
+  num_clients: 10
   partition:
     strategy: dirichlet
     alpha: 0.5

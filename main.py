@@ -23,10 +23,18 @@ def main(cfg: DictConfig):
     server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
 
     # 2. Kick-off federated training ------------------------------------------
-    server.fit(num_rounds=5)
+    num_rounds = 5
+
+    server.fit(num_rounds=num_rounds)
 
     # 3. Persist final global model -------------------------------------------
-    torch.save(server.global_model.state_dict(), "global.pt")
+    model_name = cfg.model.arch
+    dataset_name = cfg.dataset.name
+    algorithm_name = cfg.algorithm.name
+    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_rounds{num_rounds}_global.pt"
+    torch.save(server.global_model.state_dict(), filename)
+    log.info(f"Saved global model to {filename}")
+
 
 if __name__ == "__main__":
     main()

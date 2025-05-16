@@ -110,7 +110,11 @@ def build_server(
         raise ValueError(f"Unsupported FL algorithm: {algo_cfg.name}")
 
     # -- Simple wrapper so main.py just calls .fit() --------------------------
+        
     class _Server:
+        def __init__(self):
+            self._global_model = model_fn().to(device)
+
         def fit(self, num_rounds: int = getattr(algo_cfg, "rounds", 50)):
             fl.simulation.start_simulation(
                 client_fn=lambda cid: _Client(cid),
@@ -118,5 +122,10 @@ def build_server(
                 config=fl.server.ServerConfig(num_rounds=num_rounds),
                 strategy=strategy,
             )
+
+        @property
+        def global_model(self):
+            return self._global_model
+
 
     return _Server()

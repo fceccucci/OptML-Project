@@ -1,0 +1,7 @@
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedprox
+  local_epochs: 5
+  lr: 0.01
+  client_fraction: 1.0
+  mu: 0.1  # Proximal term strength

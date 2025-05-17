@@ -10,7 +10,7 @@ import torchvision, torch
 log = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="conf", config_name="cifar_resnet18_alpha0_75.yaml", version_base="1.3")
+@hydra.main(config_path="conf", config_name="cifar_resnet18_iid.yaml", version_base="1.3")
 def main(cfg: DictConfig):
 
     torch.backends.cudnn.benchmark = True
@@ -23,7 +23,7 @@ def main(cfg: DictConfig):
     server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
 
     # 2. Kick-off federated training ------------------------------------------
-    num_rounds = 10
+    num_rounds = 20
     
     server.fit(num_rounds=num_rounds)
 
@@ -31,7 +31,7 @@ def main(cfg: DictConfig):
     model_name = cfg.model.arch
     dataset_name = cfg.dataset.name
     algorithm_name = cfg.algorithm.name
-    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_alpha{0.75}_rounds{num_rounds}_global.pt"
+    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_iid_rounds{num_rounds}_global.pt"
     torch.save(server.global_model.state_dict(), filename)
     log.info(f"Saved global model to {filename}")
 

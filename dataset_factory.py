@@ -89,19 +89,26 @@ def build_dataloaders(cfg) -> Tuple[List[DataLoader], List[DataLoader]]:
         raise ValueError(f"Unknown partition strategy: {cfg.partition.strategy}")
 
     # 4) Wrap in DataLoaders with separate train and validation subsets ------
+   # ...existing code...
+
     trainloaders, valloaders = [], []
 
     for cid in range(num_clients):
+        train_indices = client_train_idcs[cid]
+        test_indices = client_test_idcs[cid]
+        if len(train_indices) == 0 or len(test_indices) == 0:
+            continue  # Skip clients with no data
+
         tl = DataLoader(
-            Subset(train_ds, client_train_idcs[cid]),
+            Subset(train_ds, train_indices),
             batch_size=batch_size,
             shuffle=True,
             num_workers=2,
-            drop_last=True,  # <--- Add this line
+            drop_last=True,
         )
 
         vl = DataLoader(
-            Subset(test_ds, client_test_idcs[cid]),
+            Subset(test_ds, test_indices),
             batch_size=batch_size,
             shuffle=False,
             num_workers=2,

@@ -1,11 +1,21 @@
 import hydra, torch, logging
 from omegaconf import DictConfig, OmegaConf
-
 from dataset_factory import build_dataloaders
 from model_factory import build_model
 from algorithm_factory import build_server
-
 import torchvision, torch
+import random
+import numpy as np
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+set_seed(42)
 
 log = logging.getLogger(__name__)
 

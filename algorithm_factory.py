@@ -121,6 +121,7 @@ def build_server(
                 num_clients=num_clients,
                 config=fl.server.ServerConfig(num_rounds=num_rounds),
                 strategy=strategy,
+                client_resources={"num_cpus": 1, "num_gpus": 1.0},  # <--- Add this line
             )
 
         @property

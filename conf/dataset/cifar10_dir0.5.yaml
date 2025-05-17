@@ -1,7 +1,0 @@
-_target_: src.dataset_factory.get_dataset
-name: cifar10
-num_clients: 5
-partition:
-  strategy: dirichlet
-  alpha: 0.5           # smaller ⇒ more non-IID
-root: ${oc.env:DATA_ROOT,/tmp/data}

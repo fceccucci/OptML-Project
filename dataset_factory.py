@@ -97,6 +97,7 @@ def build_dataloaders(cfg) -> Tuple[List[DataLoader], List[DataLoader]]:
             batch_size=batch_size,
             shuffle=True,
             num_workers=2,
+            drop_last=True,  # <--- Add this line
         )
 
         vl = DataLoader(

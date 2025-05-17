@@ -1,4 +1,0 @@
-_target_: src.model_factory.get_model
-arch: resnet18
-pretrained: false
-num_classes: ${task.num_classes}

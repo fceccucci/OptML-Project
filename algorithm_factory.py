@@ -20,27 +20,46 @@ from hydra.utils import instantiate
 def _train(model: nn.Module, loader: DataLoader, loss_fn, device, lr: float, epochs: int):
     model.to(device)
     model.train()
-    opt = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
-    for _ in range(epochs):
+    optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+
+    for epoch in range(epochs):
+        total_loss = 0.0
+        batch_count = 0
         for x, y in loader:
             x, y = x.to(device), y.to(device)
-            opt.zero_grad()
-            loss_fn(model(x), y).backward()
-            opt.step()
+            optimizer.zero_grad()
+            outputs = model(x)
+            loss = loss_fn(outputs, y)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+            batch_count += 1
+
+        if batch_count > 0:
+            print(f"[DEBUG] Epoch {epoch+1}/{epochs}, Loss: {total_loss/batch_count:.4f}")
+        else:
+            print(f"[WARNING] Client has no data in epoch {epoch+1}.")
+
 
 
 def _evaluate(model: nn.Module, loader: DataLoader, loss_fn, device):
     model.to(device)
     model.eval()
-    total, correct, n = 0.0, 0, 0
+    total_loss, correct, total = 0.0, 0, 0
+
     with torch.no_grad():
         for x, y in loader:
             x, y = x.to(device), y.to(device)
-            logits = model(x)
-            total += loss_fn(logits, y).item() * y.size(0)
-            correct += (logits.argmax(1) == y).sum().item()
-            n += y.size(0)
-    return total / n, correct / n
+            outputs = model(x)
+            loss = loss_fn(outputs, y)
+            total_loss += loss.item() * y.size(0)
+            correct += (outputs.argmax(1) == y).sum().item()
+            total += y.size(0)
+
+    avg_loss = total_loss / total
+    accuracy = correct / total
+    print(f"[DEBUG] Evaluation - Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+    return avg_loss, accuracy
 
 
 # --------------------------------------------------------------------------- #
@@ -110,7 +129,6 @@ def build_server(
         raise ValueError(f"Unsupported FL algorithm: {algo_cfg.name}")
 
     # -- Simple wrapper so main.py just calls .fit() --------------------------
-        
     class _Server:
         def __init__(self):
             self._global_model = model_fn().to(device)
@@ -126,6 +144,5 @@ def build_server(
         @property
         def global_model(self):
             return self._global_model
-
 
     return _Server()

@@ -33,7 +33,7 @@ def main(cfg: DictConfig):
     server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
 
     # 2. Kick-off federated training ------------------------------------------
-    num_rounds = 20
+    num_rounds = 2
     
     server.fit(num_rounds=num_rounds)
 

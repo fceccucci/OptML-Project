@@ -6,6 +6,7 @@ from algorithm_factory import build_server
 import torchvision, torch
 import random
 import numpy as np
+import warnings
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -18,6 +19,10 @@ def set_seed(seed=42):
 set_seed(42)
 
 log = logging.getLogger(__name__)
+
+
+warnings.filterwarnings("ignore")
+
 
 
 @hydra.main(config_path="conf", config_name="cifar_resnet18_iid.yaml", version_base="1.3")
@@ -42,7 +47,7 @@ def main(cfg: DictConfig):
     server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
 
     # 2. Kick-off federated training ------------------------------------------
-    num_rounds = 2
+    num_rounds = 10
     
     server.fit(num_rounds=num_rounds)
 

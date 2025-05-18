@@ -12,6 +12,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import flwr as fl
 from hydra.utils import instantiate
+from flwr.common import Context
 
 
 # --------------------------------------------------------------------------- #
@@ -109,6 +110,9 @@ def build_server(
             self.set_parameters(params)
             loss, acc = _evaluate(self.model, valloaders[self.cid], loss_fn, device)
             return float(loss), len(valloaders[self.cid].dataset), {"accuracy": acc}
+        
+        def to_client(self):
+            return fl.client.NumPyClient.to_client(self)
 
     # -- Strategy -------------------------------------------------------------
     name = algo_cfg.name.lower()
@@ -136,12 +140,16 @@ def build_server(
         def fit(self, num_rounds: int = getattr(algo_cfg, "rounds", 50), client_resources=None):
             if client_resources is None:
                 client_resources = {"num_cpus": 1}
+            def client_fn(context: Context):
+                cid = int(context.node_config["partition-id"])
+                return _Client(cid).to_client()
+
             fl.simulation.start_simulation(
-                client_fn=lambda cid: _Client(cid),
+                client_fn=client_fn,
                 num_clients=num_clients,
                 config=fl.server.ServerConfig(num_rounds=num_rounds),
                 strategy=strategy,
-                client_resources=client_resources,  # <--- pass resources here
+                client_resources=client_resources,
             )
 
         @property

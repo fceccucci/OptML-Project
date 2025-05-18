@@ -62,8 +62,15 @@ def build_model(cfg: Any) -> nn.Module:
         return _SmallCNN(cfg.num_classes)
 
     if arch == "resnet18":
+        weights = None
+        if getattr(cfg, "pretrained", False):
+            # Use the recommended weights enum for torchvision >= 0.13
+            try:
+                weights = tv.ResNet18_Weights.DEFAULT
+            except AttributeError:
+                weights = "IMAGENET1K_V1"  # fallback for older versions
         return tv.resnet18(
-            pretrained=getattr(cfg, "pretrained", False),
+            weights=weights,
             num_classes=cfg.num_classes,
         )
 

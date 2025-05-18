@@ -12,8 +12,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import flwr as fl
 from hydra.utils import instantiate
-from flwr.common import Context
-
+from flwr.common import Context, parameters_to_ndarrays
 
 # --------------------------------------------------------------------------- #
 #  plain PyTorch helpers                                                      #
@@ -24,7 +23,6 @@ def _train(model: nn.Module, loader: DataLoader, loss_fn, device, lr: float, epo
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 
     for epoch in range(epochs):
-         # Debug: print device info at the start of each epoch
         total_loss = 0.0
         batch_count = 0
         for x, y in loader:
@@ -40,8 +38,6 @@ def _train(model: nn.Module, loader: DataLoader, loss_fn, device, lr: float, epo
             print(f"[DEBUG] Epoch {epoch+1}/{epochs}, Loss: {total_loss/batch_count:.4f}, Device: {next(model.parameters()).device}")
         else:
             print(f"[WARNING] Client has no data in epoch {epoch+1}.")
-
-
 
 def _evaluate(model: nn.Module, loader: DataLoader, loss_fn, device):
     model.to(device)
@@ -62,6 +58,30 @@ def _evaluate(model: nn.Module, loader: DataLoader, loss_fn, device):
     print(f"[DEBUG] Evaluation - Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
     return avg_loss, accuracy
 
+# --------------------------------------------------------------------------- #
+#  Custom strategy to save final parameters                                   #
+# --------------------------------------------------------------------------- #
+class SaveLastParametersFedAvg(fl.server.strategy.FedAvg):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.final_parameters = None
+
+    def aggregate_fit(self, rnd, results, failures):
+        aggregated = super().aggregate_fit(rnd, results, failures)
+        if aggregated is not None:
+            self.final_parameters = aggregated[0]
+        return aggregated
+
+class SaveLastParametersFedProx(fl.server.strategy.FedProx):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.final_parameters = None
+
+    def aggregate_fit(self, rnd, results, failures):
+        aggregated = super().aggregate_fit(rnd, results, failures)
+        if aggregated is not None:
+            self.final_parameters = aggregated[0]
+        return aggregated
 
 # --------------------------------------------------------------------------- #
 #  PUBLIC API                                                                 #
@@ -124,9 +144,9 @@ def build_server(
     )
 
     if name == "fedavg":
-        strategy = fl.server.strategy.FedAvg(**common_kwargs)
+        strategy = SaveLastParametersFedAvg(**common_kwargs)
     elif name == "fedprox":
-        strategy = fl.server.strategy.FedProx(
+        strategy = SaveLastParametersFedProx(
             proximal_mu=getattr(algo_cfg, "mu", 0.0), **common_kwargs
         )
     else:
@@ -151,6 +171,12 @@ def build_server(
                 strategy=strategy,
                 client_resources=client_resources,
             )
+            # After simulation, get the latest parameters from the strategy
+            parameters = strategy.final_parameters
+            ndarrays = parameters_to_ndarrays(parameters)
+            state_dict = dict(zip(self._global_model.state_dict().keys(),
+                                  [torch.tensor(p) for p in ndarrays]))
+            self._global_model.load_state_dict(state_dict, strict=True)
 
         @property
         def global_model(self):

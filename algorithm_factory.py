@@ -23,6 +23,7 @@ def _train(model: nn.Module, loader: DataLoader, loss_fn, device, lr: float, epo
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 
     for epoch in range(epochs):
+         # Debug: print device info at the start of each epoch
         total_loss = 0.0
         batch_count = 0
         for x, y in loader:
@@ -34,9 +35,8 @@ def _train(model: nn.Module, loader: DataLoader, loss_fn, device, lr: float, epo
             optimizer.step()
             total_loss += loss.item()
             batch_count += 1
-
         if batch_count > 0:
-            print(f"[DEBUG] Epoch {epoch+1}/{epochs}, Loss: {total_loss/batch_count:.4f}")
+            print(f"[DEBUG] Epoch {epoch+1}/{epochs}, Loss: {total_loss/batch_count:.4f}, Device: {next(model.parameters()).device}")
         else:
             print(f"[WARNING] Client has no data in epoch {epoch+1}.")
 
@@ -133,12 +133,15 @@ def build_server(
         def __init__(self):
             self._global_model = model_fn().to(device)
 
-        def fit(self, num_rounds: int = getattr(algo_cfg, "rounds", 50)):
+        def fit(self, num_rounds: int = getattr(algo_cfg, "rounds", 50), client_resources=None):
+            if client_resources is None:
+                client_resources = {"num_cpus": 1}
             fl.simulation.start_simulation(
                 client_fn=lambda cid: _Client(cid),
                 num_clients=num_clients,
                 config=fl.server.ServerConfig(num_rounds=num_rounds),
                 strategy=strategy,
+                client_resources=client_resources,  # <--- pass resources here
             )
 
         @property

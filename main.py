@@ -32,6 +32,15 @@ def main(cfg: DictConfig):
     model_fn = lambda: build_model(cfg.model)     # Flower expects a *callable*
     server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
 
+    # --- GPU splitting for clients ---
+    num_clients = len(trainloaders)
+    num_gpus = torch.cuda.device_count()
+    client_resources = {"num_cpus": 1}
+    if num_gpus > 0:
+        client_resources["num_gpus"] = num_gpus / num_clients  # e.g., 1 GPU / 5 clients = 0.2
+
+    server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
+
     # 2. Kick-off federated training ------------------------------------------
     num_rounds = 2
     

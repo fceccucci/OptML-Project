@@ -99,7 +99,13 @@ def build_server(
     server : object
         Call `server.fit()` to kick off federated training.
     """
-    device       = "cuda" if torch.cuda.is_available() else "cpu"
+    # Device selection with MPS support
+    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
     num_clients  = len(trainloaders)
     loss_fn      = instantiate(task_cfg.loss) if hasattr(task_cfg, "loss") else nn.CrossEntropyLoss()
     local_epochs = algo_cfg.local_epochs

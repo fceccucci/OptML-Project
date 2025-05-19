@@ -34,15 +34,15 @@ Federated learning experiments on MNIST and CIFAR-10 using PyTorch and Flower.
    pip install torch torchvision hydra-core flwr fedlab matplotlib numpy
    ```
 
-   ### Library Versions
+   #### Library Versions
 
-- torch: 2.5.1  
-- torchvision: 0.20.1  
-- hydra-core: 1.3.2  
-- flwr: 1.18.0  
-- fedlab: 1.3.0  
-- matplotlib: 3.10.3  
-- numpy: 2.0.1  
+   - torch: 2.5.1  
+   - torchvision: 0.20.1  
+   - hydra-core: 1.3.2  
+   - flwr: 1.18.0  
+   - fedlab: 1.3.0  
+   - matplotlib: 3.10.3  
+   - numpy: 2.0.1  
 
 2. **(Optional) Install Jupyter for evaluation notebooks**
 

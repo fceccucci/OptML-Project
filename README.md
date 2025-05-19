@@ -1,4 +1,4 @@
-# OptML-Project# OptML-Project
+# OptML-Project
 
 Federated learning experiments on MNIST and CIFAR-10 using PyTorch and Flower.
 

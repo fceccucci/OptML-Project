@@ -100,6 +100,14 @@ You can create new configs by copying and modifying existing ones.
 - For CIFAR-10, standard 3-channel images are used.
 - The number of clients, local epochs, and other hyperparameters can be set in the config files.
 
+## Device Compatibility
+
+- The code automatically detects and uses the best available device:
+  - **Apple Silicon (M1/M2/M3):** Uses MPS acceleration if available.
+  - **NVIDIA GPUs:** Uses CUDA if available.
+  - **Otherwise:** Falls back to CPU.
+- No manual changes are needed; device selection is handled internally in the code.
+
 ## Troubleshooting
 
 - If you see low accuracy after training, ensure that the model and data channels match and that the global model is properly updated after federated training.

@@ -25,7 +25,7 @@ Federated learning experiments on MNIST and CIFAR-10 using PyTorch and Flower.
 └── outputs/
 ```
 
-## Setup
+### Setup
 
 1. **Install dependencies**  
    Recommended: use a virtual environment (e.g., conda or venv).

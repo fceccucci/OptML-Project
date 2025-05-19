@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore")
 
 
 
-@hydra.main(config_path="conf", config_name="mnist_cnn.yaml", version_base="1.3")
+@hydra.main(config_path="conf", config_name="mnist_cnn_iid.yaml", version_base="1.3")
 def main(cfg: DictConfig):
 
     torch.backends.cudnn.benchmark = True
@@ -56,7 +56,7 @@ def main(cfg: DictConfig):
     model_name = cfg.model.arch
     dataset_name = cfg.dataset.name
     algorithm_name = cfg.algorithm.name
-    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_alpha005_rounds{num_rounds}_global.pt"
+    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_iid_rounds{num_rounds}_global.pt"
     torch.save(server.global_model.state_dict(), filename)
     log.info(f"Saved global model to {filename}")
 

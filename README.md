@@ -25,7 +25,7 @@ Federated learning experiments on MNIST and CIFAR-10 using PyTorch and Flower.
 └── outputs/
 ```
 
-### Setup
+## Setup
 
 1. **Install dependencies**  
    Recommended: use a virtual environment (e.g., conda or venv).
@@ -34,7 +34,7 @@ Federated learning experiments on MNIST and CIFAR-10 using PyTorch and Flower.
    pip install torch torchvision hydra-core flwr fedlab matplotlib numpy
    ```
 
-   ## Library Versions
+   ### Library Versions
 
 - torch: 2.5.1  
 - torchvision: 0.20.1  

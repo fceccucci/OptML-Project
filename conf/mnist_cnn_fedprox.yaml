@@ -1,0 +1,29 @@
+dataset:
+  _target_: src.dataset_factory.get_dataset
+  name: mnist
+  num_clients: 10
+  partition:
+    strategy: dirichlet
+    alpha: 0.001
+  root: /tmp/data
+
+model:
+  _target_: src.model_factory.get_model
+  arch: cnn
+  num_classes: 10
+
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedprox
+  local_epochs: 5
+  lr: 0.01
+  client_fraction: 1.0  # Try 0.4 or 0.1 for more realistic FL
+  mu: 0.01              # FedProx proximal term coefficient (adjust as needed)
+
+task:
+  num_classes: 10
+  loss:
+    _target_: torch.nn.CrossEntropyLoss
+  metrics:
+    top1:
+      _target_: src.metrics.top1_accuracy

@@ -6,7 +6,7 @@ dataset:
   num_clients: 10
   partition:
     strategy: dirichlet
-    alpha: 0.0025
+    alpha: 0.0001
   root: /tmp/data
 
 model:
@@ -19,8 +19,7 @@ algorithm:
   name: fedavg
   local_epochs: 5
   lr: 0.01
-  client_fraction: 1.0
-
+  client_fraction: 1.0 # Not realitic, should be 0.4 and a low value for this parameter would be 0.1
 task:
   num_classes: 10
   loss:

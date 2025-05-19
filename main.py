@@ -18,12 +18,14 @@ def set_seed(seed=42):
 
 set_seed(42)
 
-log = logging.getLogger(__name__)
-
-
+# Suppress Python warnings (e.g., DeprecationWarning, UserWarning)
 warnings.filterwarnings("ignore")
 
+# Suppress only WARNING logs from Flower
+logging.getLogger("ray").setLevel(logging.ERROR)   # Hide Ray warnings (if any)
+logging.getLogger("py.warnings").setLevel(logging.ERROR)  # Hide warnings from warnings module
 
+log = logging.getLogger(__name__)
 
 @hydra.main(config_path="conf", config_name="mnist_cnn.yaml", version_base="1.3")
 def main(cfg: DictConfig):
@@ -56,7 +58,7 @@ def main(cfg: DictConfig):
     model_name = cfg.model.arch
     dataset_name = cfg.dataset.name
     algorithm_name = cfg.algorithm.name
-    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_alpha0005_rounds{num_rounds}_global.pt"
+    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_alpha00001_rounds{num_rounds}_global.pt"
     torch.save(server.global_model.state_dict(), filename)
     log.info(f"Saved global model to {filename}")
 

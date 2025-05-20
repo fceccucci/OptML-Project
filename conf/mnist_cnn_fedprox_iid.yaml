@@ -18,7 +18,7 @@ algorithm:
   name: fedprox
   local_epochs: 5
   lr: 0.01
-  client_fraction: 1.0  # Try 0.4 or 0.1 for more realistic FL
+  client_fraction: 0.4  # Try 0.4 or 0.1 for more realistic FL
   mu: 0.01              # FedProx proximal term coefficient (adjust as needed)
 
 task:

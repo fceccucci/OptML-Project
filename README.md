@@ -38,6 +38,7 @@ Below is a conceptual diagram of the federated learning workflow implemented in 
                         +---------------------+
 
 ---
+```
 
 ## Project Structure
 

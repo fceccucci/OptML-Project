@@ -5,5 +5,6 @@ from src.client_app import app as client_app
 run_simulation(
     server_app=server_app,
     client_app=client_app,
-    num_supernodes=4,
+    #TODO load config
+    num_supernodes=2,
 )

@@ -16,7 +16,7 @@ from src.globals import CONFIG_FILE
 
 def server_fn(context: Context) -> ServerAppComponents:
     """Construct components for ServerApp."""
-    config_name = f"{context.run_config['config-name']}" if context else CONFIG_FILE
+    config_name = f"{context.run_config['config-name']}" if context.run_config else CONFIG_FILE
     config_path = f"conf/{config_name}.yaml"
     cfg = OmegaConf.load(config_path)
     #TODO use cfg to create run!
@@ -46,7 +46,7 @@ def server_fn(context: Context) -> ServerAppComponents:
         results = trainer.test(global_model, test_loader)
         loss = results[0]["test_loss"]
         # TODO how to get the metrics out of this?!
-        return loss, {}
+        return loss, results[0]
 
 
     # TODO build strategy factory
@@ -59,7 +59,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     )
 
     # Construct ServerConfig
-    num_rounds = context.run_config["num-server-rounds"]
+    num_rounds = cfg.task.num_of_rounds
     # TODO get out of config
     config = ServerConfig(num_rounds=num_rounds)
     # return ServerAppComponents(strategy=strategy, config=config)

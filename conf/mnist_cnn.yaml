@@ -22,6 +22,7 @@ algorithm:
   client_fraction: 0.4
 
 task:
+  num_of_rounds: 10
   num_classes: 10
   loss:
     _target_: torch.nn.CrossEntropyLoss

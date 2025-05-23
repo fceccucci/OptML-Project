@@ -56,7 +56,6 @@ def server_fn(context: Context) -> ServerAppComponents:
         fraction_evaluate=0.5,
         initial_parameters=global_model_init,
         evaluate_fn=evaluate_global,
-
     )
 
     # Construct ServerConfig

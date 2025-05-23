@@ -105,3 +105,45 @@ def evaluate_on_mnist_test(model_cfg, model_weights_path, batch_size=64, verbose
     if verbose:
         print(f"Global model accuracy on MNIST test set: {accuracy:.2f}%")
     return accuracy
+
+
+def evaluate_on_cifar10_test(model_cfg, model_weights_path, batch_size=64, verbose=True):
+    """
+    Loads the CIFAR-10 test set, evaluates the given model on it, and prints accuracy.
+
+    Args:
+        model_cfg: The model config (e.g., cfg.model from Hydra).
+        model_weights_path: Path to the saved model weights.
+        batch_size: Batch size for DataLoader.
+        verbose: If True, prints the accuracy.
+
+    Returns:
+        accuracy (float): Test accuracy in percent.
+    """
+    from src.model_factory import build_model
+
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = build_model(model_cfg).to(device)
+    model.load_state_dict(torch.load(model_weights_path, map_location=device))
+    model.eval()
+
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in testloader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+    if verbose:
+        print(f"Global model accuracy on CIFAR-10 test set: {accuracy:.2f}%")
+    return accuracy

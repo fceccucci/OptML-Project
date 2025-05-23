@@ -1,0 +1,30 @@
+# conf/mnist_cnn.yaml
+
+dataset:
+  _target_: src.dataset_factory.get_dataset
+  name: mnist
+  num_clients: 2
+  partition:
+    strategy: dirichlet
+    alpha: 0.001
+  root: /tmp/data
+
+model:
+  _target_: src.model_factory.get_model
+  arch: cnn
+  num_classes: 10
+
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedavg
+  local_epochs: 2
+  lr: 0.01
+  client_fraction: 0.4
+
+task:
+  num_classes: 10
+  loss:
+    _target_: torch.nn.CrossEntropyLoss
+  metrics:
+    top1:
+      _target_: src.metrics.top1_accuracy  # or omit if not used

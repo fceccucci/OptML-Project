@@ -1,0 +1,38 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": "--config-name=mnist_cnn_debug.yaml"
+        },
+        {
+        "name": "Debug Flower Client",
+        "type": "python",              
+        "request": "launch",
+        "module": "flwr",
+        "cwd": "${workspaceFolder}",
+        "args": ["run", "pytorchlightning_example"],
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "redirectOutput": true
+        },
+        {
+            "name": "Debug Flower CLI",
+            "type": "debugpy",               
+            "request": "launch",
+            "program": "/home/veit/miniconda3/envs/optml/bin/flwr",   
+            "args": ["run", "."],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,
+            "redirectOutput": true
+        }
+    ]
+}

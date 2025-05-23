@@ -1,0 +1,1 @@
+CONFIG_FILE = "mnist_cnn_debug"

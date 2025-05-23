@@ -8,6 +8,7 @@ from flwr.common import Context
 import torch
 from src.model import SmallCNN
 from src.dataset_factory import load_dataset, build_dataloaders
+from src.globals import CONFIG_FILE
 
 # disable_progress_bar()
 
@@ -49,7 +50,8 @@ class FlowerClient(NumPyClient):
 
 def client_fn(context: Context) -> Client:
     """Construct a Client that will be run in a ClientApp."""
-    config_path = f"conf/{context.run_config['config-name']}.yaml"
+    config_name = f"{context.run_config['config-name']}" if context else CONFIG_FILE
+    config_path = f"conf/{config_name}.yaml"
     cfg = OmegaConf.load(config_path)
 
     # Read the node_config to fetch data partition associated to this node

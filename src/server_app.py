@@ -9,17 +9,15 @@ from src.utils import get_parameters, set_parameters
 from src.model import SmallCNN
 from src.dataset_factory import load_dataset
 from src.server import CustomServer
+from src.globals import CONFIG_FILE
 
 
 
 
 def server_fn(context: Context) -> ServerAppComponents:
     """Construct components for ServerApp."""
-    print(context.run_config)
-    print(context.run_config['config-name'])
-    return
-    
-    config_path = f"conf/{context.run_config['config-name']}.yaml"
+    config_name = f"{context.run_config['config-name']}" if context else CONFIG_FILE
+    config_path = f"conf/{config_name}.yaml"
     cfg = OmegaConf.load(config_path)
     #TODO use cfg to create run!
     # Convert model parameters to flwr.common.Parameters

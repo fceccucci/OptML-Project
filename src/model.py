@@ -1,43 +1,58 @@
 import pytorch_lightning as pl
 import torch
+import torch.nn.functional as F
 import torch.nn as nn
 from torchmetrics import MetricCollection, Accuracy
+
+
 
 class SmallCNN(pl.LightningModule):
     """
     A PyTorch Lightning wrapper for the SmallCNN model with proper MetricCollection usage.
     """
-    def __init__(self, num_classes: int = 10, in_channels: int = 3, lr: float = 1e-3):
+    def __init__(self, num_classes: int = 10, in_channels: int = 1, lr: float = 1e-3):
         super().__init__()
         # Save hyperparameters (num_classes will be used by metrics)
         self.save_hyperparameters()
 
         self.lr = lr
 
-        # Feature extractor
-        self.features = nn.Sequential(
-            # nn.Conv2d(in_channels, 32, kernel_size=3, padding=1),
-            # nn.ReLU(inplace=True),
-            # nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            # nn.ReLU(inplace=True),
-            # nn.MaxPool2d(2),
-            # nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            # nn.ReLU(inplace=True),
-            # nn.MaxPool2d(2),
-            nn.Conv2d(in_channels, 32, 3, padding=1), nn.ReLU(inplace=True),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(inplace=True),
+        self.model = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-        
-        )
-        # Classifier head
-        self.classifier = nn.Sequential(
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
-            nn.Linear(7 * 7 * 128, 256),
-            # nn.ReLU(inplace=True),
-            nn.Linear(256, num_classes),
+            nn.Linear(64, 10)
         )
+  
+
+        # # Feature extractor
+        # self.features = nn.Sequential(
+        #     # nn.Conv2d(in_channels, 32, kernel_size=3, padding=1),
+        #     # nn.ReLU(inplace=True),
+        #     # nn.Conv2d(32, 64, kernel_size=3, padding=1),
+        #     # nn.ReLU(inplace=True),
+        #     # nn.MaxPool2d(2),
+        #     # nn.Conv2d(64, 128, kernel_size=3, padding=1),
+        #     # nn.ReLU(inplace=True),
+        #     # nn.MaxPool2d(2),
+        #     nn.Conv2d(in_channels, 32, 3, padding=1), nn.ReLU(inplace=True),
+        #     nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(inplace=True),
+        #     nn.MaxPool2d(2),
+        #     nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(inplace=True),
+        #     nn.MaxPool2d(2),
+        
+        # )
+        # # Classifier head
+        # self.classifier = nn.Sequential(
+        #     nn.Flatten(),
+        #     nn.Linear(7 * 7 * 128, 256),
+        #     # nn.ReLU(inplace=True),
+        #     nn.Linear(256, num_classes),
+        # )
 
         # Loss function
         self.criterion = nn.CrossEntropyLoss()
@@ -50,7 +65,9 @@ class SmallCNN(pl.LightningModule):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass"""
-        return self.classifier(self.features(x))
+        # return self.classifier(self.features(x))
+        return self.model(x)
+    
 
     def training_step(self, batch, batch_idx):
         """Training logic: update metrics each batch"""
@@ -101,11 +118,12 @@ class SmallCNN(pl.LightningModule):
 
     def configure_optimizers(self):
         """Optimizer configuration"""
-        return torch.optim.SGD(
-            self.parameters(),
-            lr=self.lr,
-            momentum=0.9
-        )
+        return torch.optim.Adam(self.parameters(),self.lr)
+        # return torch.optim.SGD(
+        #     self.parameters(),
+        #     lr=self.lr,
+        #     momentum=0.9
+        # )
 
 # Usage remains the same:
 # trainer = pl.Trainer(max_epochs=10, gpus=1)

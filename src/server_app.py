@@ -5,9 +5,9 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig, SimpleClie
 from flwr.server.strategy import FedAvg
 from omegaconf import OmegaConf
 import torch
-from src.utils import get_parameters, set_parameters
+from src.utils import get_parameters, set_parameters, standard_aggregate, load_data_test_data_loader, load_data
 from src.model import SmallCNN
-from src.dataset_factory import load_dataset
+
 from src.server import CustomServer
 from src.globals import CONFIG_FILE
 
@@ -16,12 +16,16 @@ from src.globals import CONFIG_FILE
 
 def server_fn(context: Context) -> ServerAppComponents:
     """Construct components for ServerApp."""
-    config_name = f"{context.run_config['config-name']}" if context.run_config else CONFIG_FILE
-    config_path = f"conf/{config_name}.yaml"
-    cfg = OmegaConf.load(config_path)
-    #TODO use cfg to create run!
+    if 'config' in context.run_config:
+        cfg = context.run_config['config']
+    # TODO this is outdated
+    # config_name = f"{context.run_config['config-name']}" if context.run_config else CONFIG_FILE
+    # config_path = f"conf/{config_name}.yaml"
+    # cfg = OmegaConf.load(config_path)
+
+    load_data(1,10, cfg)
     # Convert model parameters to flwr.common.Parameters
-    global_model = SmallCNN()
+    global_model = SmallCNN(lr=cfg.algorithm.lr)
     ndarrays = get_parameters(global_model)
     global_model_init = ndarrays_to_parameters(ndarrays)
 
@@ -34,28 +38,36 @@ def server_fn(context: Context) -> ServerAppComponents:
     #     fit_metrics_aggregation_fn=logging_without_aggregate("train"),
     #     evaluate_metrics_aggregation_fn=logging_without_aggregate("test"),
     # )
-    _, _, test_dataset = load_dataset(cfg.dataset)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False)
+    
+    test_loader = load_data_test_data_loader(cfg)
 
+    # TODO No global saving possible
+    # best = { 'acc': 0, 'parameter': None }
     def evaluate_global(server_rounds, parameters, config):
-        # print(f"weights:{weights}")
-        # print(f"config:{config}")
-        # Load weights into a fresh model
         set_parameters(global_model, parameters)
         trainer = pl.Trainer(enable_progress_bar=False)
-        results = trainer.test(global_model, test_loader)
+        results = trainer.test(global_model, test_loader, verbose=False)
         loss = results[0]["test_loss"]
-        # TODO how to get the metrics out of this?!
+        acc = results[0]["test_acc"]
+        # if acc > best_acc:
+        #     best_acc = acc
+        #     best_parameter = parameters
+        if server_rounds >= (cfg.task.num_of_rounds - 1):
+            torch.save(parameters, "best_model.pt")
+            # torch.save(best_parameter, "best_model.pt")
         return loss, results[0]
 
 
     # TODO build strategy factory
-    # Define strategy
     strategy = FedAvg(
-        fraction_fit=0.5,
-        fraction_evaluate=0.5,
+        min_fit_clients=cfg.dataset.num_clients,
+        min_available_clients=cfg.dataset.num_clients,
+        fraction_fit=cfg.algorithm.client_fraction,
+        fraction_evaluate=cfg.algorithm.client_fraction,
         initial_parameters=global_model_init,
         evaluate_fn=evaluate_global,
+        evaluate_metrics_aggregation_fn=standard_aggregate,
+        fit_metrics_aggregation_fn=standard_aggregate, 
     )
 
     # Construct ServerConfig

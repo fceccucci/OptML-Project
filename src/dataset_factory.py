@@ -26,7 +26,7 @@ except ImportError as e:
         "Install it with `pip install fedlab`."
     ) from e
 
-def load_dataset(cfg) -> Tuple[Dataset, Dataset, Dataset]:
+def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
     root = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
     name = cfg.name.lower()
     if name == "cifar10":
@@ -51,6 +51,11 @@ def load_dataset(cfg) -> Tuple[Dataset, Dataset, Dataset]:
     else:
         raise ValueError(f"Unsupported dataset: {cfg.name}")
     
+
+    if debug:
+        train_ds = Subset(train_ds, range(min(len(train_ds), 100)))
+        val_ds   = Subset(val_ds,   range(min(len(val_ds),   50)))
+        test_ds  = Subset(test_ds,  range(min(len(test_ds),  50)))
     return train_ds, val_ds, test_ds
 
 

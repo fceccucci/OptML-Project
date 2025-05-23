@@ -14,17 +14,18 @@ class WAndBHistory(History):
         # Initialize base History
         super().__init__()
         # Start a new wandb run
-        wandb.init(project=project, **wandb_init_kwargs)
+        if wandb.run is not None:
+            wandb.init(project=project, **wandb_init_kwargs)
 
     def add_loss_distributed(self, server_round: int, loss: float) -> None:
         # Log distributed loss
-        wandb.log({"loss/distributed": loss}, step=server_round)
+        wandb.log({"distributed/loss": loss}, step=server_round)
         # Call base implementation
         super().add_loss_distributed(server_round, loss)
 
     def add_loss_centralized(self, server_round: int, loss: float) -> None:
         # Log centralized loss
-        wandb.log({"loss/centralized": loss}, step=server_round)
+        wandb.log({"centralized/loss": loss}, step=server_round)
         # Call base implementation
         super().add_loss_centralized(server_round, loss)
 
@@ -32,7 +33,7 @@ class WAndBHistory(History):
         self, server_round: int, metrics: dict[str, Scalar]
     ) -> None:
         # Prefix each metric key and log
-        log_data = {f"metrics/distributed_fit/{key}": value for key, value in metrics.items()}
+        log_data = {f"distributed_fit/{key}": value for key, value in metrics.items()}
         wandb.log(log_data, step=server_round)
         super().add_metrics_distributed_fit(server_round, metrics)
 
@@ -40,7 +41,7 @@ class WAndBHistory(History):
         self, server_round: int, metrics: dict[str, Scalar]
     ) -> None:
         # Prefix each metric key and log
-        log_data = {f"metrics/distributed_eval/{key}": value for key, value in metrics.items()}
+        log_data = {f"distributed_eval/{key}": value for key, value in metrics.items()}
         wandb.log(log_data, step=server_round)
         super().add_metrics_distributed(server_round, metrics)
 
@@ -48,6 +49,6 @@ class WAndBHistory(History):
         self, server_round: int, metrics: dict[str, Scalar]
     ) -> None:
         # Prefix each metric key and log
-        log_data = {f"metrics/centralized/{key}": value for key, value in metrics.items()}
+        log_data = {f"centralized/{key}": value for key, value in metrics.items()}
         wandb.log(log_data, step=server_round)
         super().add_metrics_centralized(server_round, metrics)

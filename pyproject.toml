@@ -42,4 +42,4 @@ config-name = "mnist_cnn"
 default = "local-simulation"
 
 [tool.flwr.federations.local-simulation]
-options.num-supernodes = 4
+options.num-supernodes = 10

@@ -2,17 +2,23 @@
 
 import logging
 from collections import OrderedDict
-from typing import Any
+import os
+from typing import Any, Dict, List, Tuple
 
 import pytorch_lightning as pl
 import torch
 from flwr_datasets import FederatedDataset
-from flwr_datasets.partitioner import IidPartitioner
+from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner 
 from torch import nn
 from torch.nn import functional as F
-from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 from torchvision import transforms
+
+from logging import INFO
+from flwr.common.logger import log
+import torchvision
+
+
 
 logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
 
@@ -52,17 +58,12 @@ logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
 #         self._evaluate(batch, "val")
 
 #     def test_step(self, batch, batch_idx) -> None:
-#         self._evaluate(batch, "test")
-
-#     def _evaluate(self, batch, stage=None) -> None:
-#         x = batch["image"]
-#         x = x.view(x.size(0), -1)
-#         z = self.encoder(x)
-#         x_hat = self.decoder(z)
-#         loss = F.mse_loss(x_hat, x)
-#         if stage:
-#             self.log(f"{stage}_loss", loss, prog_bar=True)
-
+#         self._evaluate(batch,# Stolen from strategy implementation!
+def weighted_avg(results: list[tuple[int, float]]) -> float:
+    """Aggregate evaluation results obtained from multiple clients."""
+    num_total_evaluation_examples = sum(num_examples for (num_examples, _) in results)
+    weighted_losses = [num_examples * loss for num_examples, loss in results]
+    return sum(weighted_losses) / num_total_evaluation_examples
 
 def get_parameters(model):
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
@@ -79,21 +80,36 @@ def apply_transforms(batch):
     batch["image"] = [transforms.functional.to_tensor(img) for img in batch["image"]]
     return batch
 
+def load_data_test_data_loader(cfg):
+    root = os.path.expanduser(getattr(cfg, "root", cfg.dataset.root))
+    tfm = transforms.Compose([transforms.ToTensor()])
+
+    test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
+
+    testloader = DataLoader(
+        test_ds,
+        shuffle=False,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory
+    )
+    return testloader
+
 
 fds = None  # Cache FederatedDataset
-
-
-def load_data(partition_id, num_partitions):
+def load_data(partition_id, num_partitions, cfg):
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
-        partitioner = IidPartitioner(num_partitions=num_partitions)
+        partitioner = DirichletPartitioner(num_partitions=num_partitions, 
+                                           partition_by="label", 
+                                           alpha=cfg.dataset.alpha)
         fds = FederatedDataset(
             dataset="ylecun/mnist",
             partitioners={"train": partitioner},
         )
+    
     partition = fds.load_partition(partition_id, "train")
-
     partition = partition.with_transform(apply_transforms)
     # 20 % for on federated evaluation
     partition_full = partition.train_test_split(test_size=0.2, seed=42)
@@ -103,14 +119,67 @@ def load_data(partition_id, num_partitions):
     )
     trainloader = DataLoader(
         partition_train_valid["train"],
-        batch_size=32,
         shuffle=True,
-        num_workers=2,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory
     )
     valloader = DataLoader(
         partition_train_valid["test"],
-        batch_size=32,
-        num_workers=2,
+        shuffle=False,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory
     )
-    testloader = DataLoader(partition_full["test"], batch_size=32, num_workers=1)
+    testloader = DataLoader(
+        partition_full["test"],
+        shuffle=False,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory
+    )
     return trainloader, valloader, testloader
+
+# Stolen from strategy implementation!
+def weighted_loss_avg(results: list[tuple[int, float]]) -> float:
+    """Aggregate evaluation results obtained from multiple clients."""
+    num_total_evaluation_examples = sum(num_examples for (num_examples, _) in results)
+    weighted_losses = [num_examples * loss for num_examples, loss in results]
+    return sum(weighted_losses) / num_total_evaluation_examples
+
+
+def standard_aggregate(me: List[Tuple[int, Dict[str, Any]]]):
+    log(INFO, "[AGGREGATE]")
+    aggregate_metrics = {}
+    for key, _ in me[0][1].items():
+        # if "loss" in key:
+        #     avg = weighted_loss_avg([
+        #         (num_examples, metrics[key])
+        #         for num_examples, metrics in me
+        #     ])
+        # else:
+        # TODO we calculate loss and avg with the same function
+        avg = weighted_avg([
+            (num_examples, metrics[key])
+            for num_examples, metrics in me
+        ])
+        aggregate_metrics[key] = avg
+
+        # aggregate_metrics[f"{key}_dist"] = [metrics[key] for _, metrics in me]
+
+    for id, (_, metrics) in enumerate(me):
+        #TODO this random logs the resulting values
+        for key, value in metrics.items():
+            aggregate_metrics[f"{key}_{id}"] = value
+
+    return aggregate_metrics
+
+def flatten_dict(d: dict, parent_key: str = "", sep: str = ".") -> dict:
+    items: dict = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items

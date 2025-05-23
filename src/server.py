@@ -1,6 +1,4 @@
 from flwr.server import Server
-import concurrent.futures
-import io
 import timeit
 from logging import INFO
 from typing import Optional

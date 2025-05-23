@@ -19,6 +19,7 @@ dependencies = [
     "flwr-datasets[vision]>=0.5.0",
     "pytorch-lightning==2.4.0",
     "torchvision==0.21.0",
+    "wandb"
 ]
 
 [tool.hatch.build.targets.wheel]

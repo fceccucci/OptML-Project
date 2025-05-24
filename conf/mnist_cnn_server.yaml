@@ -16,16 +16,16 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 5
-  lr: 1e-3
+  lr: 0.01
   client_fraction: 0.4
 
 task:
-  num_of_rounds: 1000
+  num_of_rounds: 30
 
 backend_config:
   client_resources:
     num_cpus: 2     # each client may use up to 8 CPU cores
-    num_gpus: 0.10  # each client may use 10% of a single GPU’s VRAM
+    num_gpus: 0.05  # each client may use 10% of a single GPU’s VRAM
 
 
 

@@ -15,7 +15,7 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 1
-  lr: 1e-3
+  lr: 0.01
   client_fraction: 0.1
 
 task:

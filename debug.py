@@ -10,15 +10,21 @@ from flwr.client import ClientApp
 from flwr.server import ServerApp, ServerAppComponents
 from flwr.common import Context
 from src.utils import flatten_dict
+from hydra.core.hydra_config import HydraConfig
 import wandb
 
 @hydra.main(version_base="1.1", config_path="conf", config_name="mnist_cnn_debug")
 def main(cfg: DictConfig) -> None:
     # Convert the entire Hydra config into a plain dict (so it's JSON-serializable)
     run_name = f"cf_{cfg.algorithm.client_fraction}_le_{cfg.algorithm.local_epochs}_alpha_{cfg.dataset.alpha}"
+
     hydra_config = OmegaConf.to_container(cfg, resolve=True)
 
-    wandb.init(project="mnist_cnn", 
+    hydra_cfg = HydraConfig.get()
+    # Pull out the config_name you passed via @hydra.main:
+    cfg_name: str = hydra_cfg.job.config_name
+
+    wandb.init(project=cfg_name[:-5], 
                config=flatten_dict(cfg),
                name=run_name, 
                reinit=True,

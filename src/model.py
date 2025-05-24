@@ -124,8 +124,3 @@ class SmallCNN(pl.LightningModule):
         #     lr=self.lr,
         #     momentum=0.9
         # )
-
-# Usage remains the same:
-# trainer = pl.Trainer(max_epochs=10, gpus=1)
-# trainer.fit(model, train_loader, val_loader)
-# trainer.test(model, test_loader)

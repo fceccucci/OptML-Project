@@ -20,7 +20,7 @@ algorithm:
   client_fraction: 1
 
 task:
-  num_of_rounds: 30
+  num_of_rounds: 50
 
 backend_config:
   init_args:

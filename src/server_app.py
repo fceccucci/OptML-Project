@@ -44,7 +44,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     # best = { 'acc': 0, 'parameter': None }
     def evaluate_global(server_rounds, parameters, config):
         set_parameters(global_model, parameters)
-        trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device(),)
+        trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device(), enable_checkpointing=False,)
         results = trainer.test(global_model, test_loader, verbose=False)
         loss = results[0]["test_loss"]
         # acc = results[0]["test_acc"]

@@ -23,7 +23,6 @@ def server_fn(context: Context) -> ServerAppComponents:
     # config_path = f"conf/{config_name}.yaml"
     # cfg = OmegaConf.load(config_path)
 
-    train_loader, val, test = load_data(1,10, cfg)
     # Convert model parameters to flwr.common.Parameters
     global_model = SmallCNN(lr=cfg.algorithm.lr)
     ndarrays = get_parameters(global_model)

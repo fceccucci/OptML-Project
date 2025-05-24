@@ -52,7 +52,7 @@ def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
 
 cache_train_ds, cache_val_ds, cache_test_ds = None, None, None
 
-def build_dataloaders(cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
+def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
     global cache_train_ds, cache_val_ds, cache_test_ds
     if cache_train_ds is not None and cache_val_ds is not None and cache_test_ds is not None:
         log(INFO, "Used cached dataloaders")
@@ -60,7 +60,6 @@ def build_dataloaders(cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
     
     train_ds, val_ds, test_ds = load_dataset(cfg, debug)
     
-    batch_size = getattr(cfg, "batch_size", 32)
     num_clients = cfg.num_clients
 
     # 2) Extract labels for partitioning ------------------------------------
@@ -92,25 +91,29 @@ def build_dataloaders(cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
 
         train_loader = DataLoader(
             Subset(train_ds, train_indices),
-            batch_size=batch_size,
             shuffle=True,
-            num_workers=2,
+            batch_size=dataloader_cfg.batch_size,
+            num_workers=dataloader_cfg.num_workers,
+            pin_memory=dataloader_cfg.pin_memory,
             drop_last=False,
         )
 
         val_loader = DataLoader(
-            Subset(test_ds, val_indices),
-            batch_size=batch_size,
+            Subset(val_ds, val_indices),
             shuffle=False,
-            num_workers=2,
+            batch_size=dataloader_cfg.batch_size,
+            num_workers=dataloader_cfg.num_workers,
+            pin_memory=dataloader_cfg.pin_memory,
         )
 
         test_loader = DataLoader(
             Subset(test_ds, test_indices),
-            batch_size=batch_size,
             shuffle=False,
-            num_workers=2,
+            batch_size=dataloader_cfg.batch_size,
+            num_workers=dataloader_cfg.num_workers,
+            pin_memory=dataloader_cfg.pin_memory,
         )
+
 
         print(f"[INFO] Client {cid}: {len(train_indices)} train samples, {len(test_indices)} test samples")
         trainloaders.append(train_loader)

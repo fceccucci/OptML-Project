@@ -71,7 +71,7 @@ def client_fn(context: Context) -> Client:
     # train_loader, val_loader, test_loader = load_data(partition_id, num_partitions, cfg)
 
     # TODO the actual dataset has a lot of buffering problems
-    train_loader, val_loader, test_loader= build_dataloaders(cfg.dataset, cfg.debug)
+    train_loader, val_loader, test_loader= build_dataloaders(cfg.dataset, cfg.dataloader, cfg.debug)
     train_loader, val_loader, test_loader = train_loader[partition_id], val_loader[partition_id], test_loader[partition_id]
     
     # Read run_config to fetch hyperparameters relevant to this run

@@ -1,0 +1,26 @@
+debug: true
+dataset:
+  _target_: src.dataset_factory.get_dataset
+  name: mnist
+  num_clients: 2
+  alpha: 0.001
+  root: /tmp/data
+dataloader:
+  num_workers: 2
+  pin_memory: false
+  batch_size: 64
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedavg
+  local_epochs: 5
+  lr: 0.001
+  client_fraction: 1
+task:
+  num_of_rounds: 2
+backend_config:
+  client_resources:
+    num_cpus: 4
+    num_gpus: 0
+trainer:
+  accelerator: auto
+  precision: 16-mixed

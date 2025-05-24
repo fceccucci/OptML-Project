@@ -24,7 +24,7 @@ task:
 
 backend_config:
   client_resources:
-    num_cpus: 8     # each client may use up to 8 CPU cores
+    num_cpus: 2     # each client may use up to 8 CPU cores
     num_gpus: 0.10  # each client may use 10% of a single GPU’s VRAM
 
 

@@ -3,7 +3,7 @@ dataset:
   _target_: src.dataset_factory.get_dataset
   name: mnist
   num_clients: 2
-  alpha: 1
+  alpha: 1000
   root: /tmp/data
 
 dataloader:
@@ -16,7 +16,7 @@ algorithm:
   name: fedavg
   local_epochs: 1
   lr: 1e-3
-  client_fraction: 1
+  client_fraction: 0.1
 
 task:
   num_of_rounds: 2

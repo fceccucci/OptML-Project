@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import DataLoader, Subset, Dataset, random_split
 import torchvision
 from torchvision import transforms
-from logging import INFO
+from logging import INFO, WARN
 from flwr.common.logger import log
 
 
@@ -50,14 +50,20 @@ def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
         test_ds  = Subset(test_ds,  range(min(len(test_ds),  50)))
     return train_ds, val_ds, test_ds
 
+cache_alpha = 0
 cache_train_ds, cache_val_ds, cache_test_ds = None, None, None
 
 def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
-    global cache_train_ds, cache_val_ds, cache_test_ds
+    alpha = cfg.alpha
+
+    global cache_train_ds, cache_val_ds, cache_test_ds, cache_alpha
     if cache_train_ds is not None and cache_val_ds is not None and cache_test_ds is not None:
-        log(INFO, "Used cached dataloaders")
-        return cache_train_ds, cache_val_ds, cache_test_ds
-    
+        if cache_alpha == alpha:
+            log(INFO, "Used cached dataloaders")
+            return cache_train_ds, cache_val_ds, cache_test_ds
+        else:
+            log(WARN, "Tryed to access wrong cache!")
+        
     train_ds, val_ds, test_ds = load_dataset(cfg, debug)
     
     num_clients = cfg.num_clients
@@ -68,7 +74,6 @@ def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], Lis
     test_labels = [lbl for _, lbl in test_ds]
 
     # 3) Partition indices by strategy --------------------------------------
-    alpha = getattr(cfg, "alpha", 0.5)
     num_classes = len(set(train_labels))
     client_train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
     client_val_idcs = dirichlet_partition(val_labels, num_clients, num_classes, alpha)
@@ -95,6 +100,7 @@ def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], Lis
             batch_size=dataloader_cfg.batch_size,
             num_workers=dataloader_cfg.num_workers,
             pin_memory=dataloader_cfg.pin_memory,
+            multiprocessing_context='fork',
             drop_last=False,
         )
 
@@ -104,6 +110,7 @@ def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], Lis
             batch_size=dataloader_cfg.batch_size,
             num_workers=dataloader_cfg.num_workers,
             pin_memory=dataloader_cfg.pin_memory,
+            multiprocessing_context='fork',
         )
 
         test_loader = DataLoader(
@@ -112,6 +119,7 @@ def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], Lis
             batch_size=dataloader_cfg.batch_size,
             num_workers=dataloader_cfg.num_workers,
             pin_memory=dataloader_cfg.pin_memory,
+            multiprocessing_context='fork',
         )
 
 
@@ -122,4 +130,5 @@ def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], Lis
 
     print(f"[INFO] Returning {len(trainloaders)} clients with data (out of requested {num_clients})")
     cache_train_ds, cache_val_ds, cache_test_ds = trainloaders, valloaders, testloaders
+    cache_alpha = alpha
     return trainloaders, valloaders, testloaders

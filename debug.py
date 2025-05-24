@@ -2,6 +2,7 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from src.dataset_factory import build_dataloaders
 from src.server_app import server_fn 
 from src.client_app import Client, client_fn
 from flwr.simulation import run_simulation
@@ -11,12 +12,20 @@ from flwr.common import Context
 from src.utils import flatten_dict
 import wandb
 
-@hydra.main(config_path="conf", config_name="mnist_cnn_debug")
+@hydra.main(version_base="1.1", config_path="conf", config_name="mnist_cnn_debug")
 def main(cfg: DictConfig) -> None:
     # Convert the entire Hydra config into a plain dict (so it's JSON-serializable)
+    run_name = f"cf_{cfg.algorithm.client_fraction}_le_{cfg.algorithm.local_epochs}_alpha_{cfg.dataset.alpha}"
     hydra_config = OmegaConf.to_container(cfg, resolve=True)
 
-    wandb.init(project="mnist_cnn", config=flatten_dict(cfg))
+    wandb.init(project="mnist_cnn", 
+               config=flatten_dict(cfg),
+               name=run_name, 
+               reinit=True,
+               group="federated_sweep")
+    
+    print("Cached?")
+    build_dataloaders(cfg.dataset, cfg.dataloader, cfg.debug)
 
     # Wrap the client_fn to inject our Hydra config into the run context
     def hydra_client_fn(context: Context) -> Client:

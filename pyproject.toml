@@ -20,7 +20,8 @@ dependencies = [
     "pytorch-lightning==2.4.0",
     "torchvision==0.21.0",
     "wandb",
-    "tensorboard>=2.17.0,<3.0.0"
+    "tensorboard>=2.17.0,<3.0.0",
+    "hydra-joblib-launcher>=1.2.0",
 ]
 
 [tool.hatch.build.targets.wheel]

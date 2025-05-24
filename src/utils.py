@@ -100,7 +100,8 @@ def load_data_test_data_loader(cfg):
         shuffle=False,
         batch_size=cfg.dataloader.batch_size,
         num_workers=cfg.dataloader.num_workers,
-        pin_memory=cfg.dataloader.pin_memory
+        pin_memory=cfg.dataloader.pin_memory,
+        multiprocessing_context='fork',
     )
     return testloader
 
@@ -147,6 +148,7 @@ def load_data(partition_id, num_partitions, cfg):
         num_workers=cfg.dataloader.num_workers,
         pin_memory=cfg.dataloader.pin_memory,
         collate_fn=federated_collate,
+        
     )
     valloader = DataLoader(
         partition_train_valid["test"],

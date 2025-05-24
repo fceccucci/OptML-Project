@@ -1,0 +1,3 @@
+- algorithm.client_fraction=0.1
+- algorithm.local_epochs=1
+- dataset.alpha=1

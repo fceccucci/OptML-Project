@@ -7,7 +7,7 @@ dataset:
   root: /tmp/data
 
 dataloader:
-  num_workers: 16
+  num_workers: 2
   pin_memory: True
   batch_size: 64
 
@@ -17,7 +17,7 @@ algorithm:
   name: fedavg
   local_epochs: 5
   lr: 0.01
-  client_fraction: 0.4
+  client_fraction: 1
 
 task:
   num_of_rounds: 30

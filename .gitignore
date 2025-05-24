@@ -134,6 +134,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+multirun_logs/
 
 # Spyder project settings
 .spyderproject

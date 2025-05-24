@@ -209,3 +209,11 @@ def flatten_dict(d: dict, parent_key: str = "", sep: str = ".") -> dict:
         else:
             items[new_key] = v
     return items
+
+def get_best_device():
+    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        return torch.device("mps")
+    elif torch.cuda.is_available():
+        return torch.device("cuda")
+    else:
+        return torch.device("cpu")

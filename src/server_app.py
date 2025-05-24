@@ -5,7 +5,7 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig, SimpleClie
 from flwr.server.strategy import FedAvg
 from omegaconf import OmegaConf
 import torch
-from src.utils import get_parameters, set_parameters, standard_aggregate, load_data_test_data_loader, load_data
+from src.utils import get_parameters, set_parameters, standard_aggregate, load_data_test_data_loader, load_data, set_seed
 from src.model import SmallCNN
 
 from src.server import CustomServer
@@ -16,14 +16,14 @@ from src.globals import CONFIG_FILE
 
 def server_fn(context: Context) -> ServerAppComponents:
     """Construct components for ServerApp."""
-    if 'config' in context.run_config:
-        cfg = context.run_config['config']
+    cfg = context.cfg
+    set_seed(42)
     # TODO this is outdated
     # config_name = f"{context.run_config['config-name']}" if context.run_config else CONFIG_FILE
     # config_path = f"conf/{config_name}.yaml"
     # cfg = OmegaConf.load(config_path)
 
-    load_data(1,10, cfg)
+    train_loader, val, test = load_data(1,10, cfg)
     # Convert model parameters to flwr.common.Parameters
     global_model = SmallCNN(lr=cfg.algorithm.lr)
     ndarrays = get_parameters(global_model)
@@ -48,7 +48,7 @@ def server_fn(context: Context) -> ServerAppComponents:
         trainer = pl.Trainer(enable_progress_bar=False)
         results = trainer.test(global_model, test_loader, verbose=False)
         loss = results[0]["test_loss"]
-        acc = results[0]["test_acc"]
+        # acc = results[0]["test_acc"]
         # if acc > best_acc:
         #     best_acc = acc
         #     best_parameter = parameters

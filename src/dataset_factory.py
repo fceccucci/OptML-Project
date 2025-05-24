@@ -12,6 +12,8 @@ import torch
 from torch.utils.data import DataLoader, Subset, Dataset, random_split
 import torchvision
 from torchvision import transforms
+from logging import INFO
+from flwr.common.logger import log
 
 
 # --- Partition helpers ------------------------------------------------------
@@ -26,40 +28,38 @@ except ImportError as e:
         "Install it with `pip install fedlab`."
     ) from e
 
+
 def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
     root = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
-    name = cfg.name.lower()
-    if name == "cifar10":
-        tfm = transforms.Compose([transforms.ToTensor()])
-        train_ds = torchvision.datasets.CIFAR10(root, train=True, download=True, transform=tfm)
-        # TODO add val_ds
-        test_ds = torchvision.datasets.CIFAR10(root, train=False, download=True, transform=tfm)
-    elif name == "mnist":
-        tfm = transforms.Compose([
-            transforms.Grayscale(num_output_channels=3),
-            transforms.ToTensor()
-        ])
-        full_train = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
-        val_split = 0.1
-        val_size = int(len(full_train) * val_split)
-        train_size = len(full_train) - val_size
-        train_ds, val_ds = random_split(
-            full_train, [train_size, val_size]
-        )
-        test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
-    
-    else:
-        raise ValueError(f"Unsupported dataset: {cfg.name}")
-    
 
+    tfm = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    full_train = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
+    val_split = 0.1
+    val_size = int(len(full_train) * val_split)
+    train_size = len(full_train) - val_size
+    train_ds, val_ds = random_split(
+        full_train, [train_size, val_size]
+    )
+    test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
+    
     if debug:
         train_ds = Subset(train_ds, range(min(len(train_ds), 100)))
         val_ds   = Subset(val_ds,   range(min(len(val_ds),   50)))
         test_ds  = Subset(test_ds,  range(min(len(test_ds),  50)))
     return train_ds, val_ds, test_ds
 
+cache_train_ds, cache_val_ds, cache_test_ds = None, None, None
 
-def build_dataloaders(cfg, train_ds: Dataset, val_ds: Dataset, test_ds: Dataset) -> Tuple[List[DataLoader], List[DataLoader]]:
+def build_dataloaders(cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
+    global cache_train_ds, cache_val_ds, cache_test_ds
+    if cache_train_ds is not None and cache_val_ds is not None and cache_test_ds is not None:
+        log(INFO, "Used cached dataloaders")
+        return cache_train_ds, cache_val_ds, cache_test_ds
+    
+    train_ds, val_ds, test_ds = load_dataset(cfg, debug)
+    
     batch_size = getattr(cfg, "batch_size", 32)
     num_clients = cfg.num_clients
 
@@ -69,50 +69,12 @@ def build_dataloaders(cfg, train_ds: Dataset, val_ds: Dataset, test_ds: Dataset)
     test_labels = [lbl for _, lbl in test_ds]
 
     # 3) Partition indices by strategy --------------------------------------
-    strat = cfg.partition.strategy.lower()
-    alpha = getattr(cfg.partition, "alpha", 0.5)
-
-    if strat == "dirichlet":
-        num_classes = len(set(train_labels))
-        client_train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
-        client_val_idcs = dirichlet_partition(val_labels, num_clients, num_classes, alpha)
-        client_test_idcs = dirichlet_partition(test_labels, num_clients, num_classes, alpha)
-    elif strat == "iid":
-        def get_split_sizes(total_len, n_clients):
-            base = total_len // n_clients
-            leftover = total_len % n_clients
-            return [base + 1 if i < leftover else base for i in range(n_clients)]
-
-        train_split_sizes = get_split_sizes(len(train_ds), num_clients)
-        val_split_sizes = get_split_sizes(len(val_ds), num_clients)
-        test_split_sizes = get_split_sizes(len(test_ds), num_clients)
-
-        train_subsets = torch.utils.data.random_split(train_ds, train_split_sizes)
-        val_subsets = torch.utils.data.random_split(val_ds, val_split_sizes)
-        test_subsets = torch.utils.data.random_split(test_ds, test_split_sizes)
-
-        trainloaders, valloaders, testloaders = [], [], []
-        for cid in range(num_clients):
-            if len(train_subsets[cid]) == 0 or len(test_subsets[cid]) == 0:
-                print(f"[WARNING] Skipping client {cid}: no data")
-                continue
-
-            train_loader = DataLoader(train_subsets[cid], batch_size=batch_size, shuffle=True, drop_last=False)
-            val_loader = DataLoader(val_subsets[cid], batch_size=batch_size, shuffle=False)
-            test_loader = DataLoader(test_subsets[cid], batch_size=batch_size, shuffle=False)
-
-
-            print(f"[INFO] Client {cid}: {len(train_subsets[cid])} train samples, {len(test_subsets[cid])} test samples")
-            trainloaders.append(train_loader)
-            valloaders.append(val_loader)
-            testloaders.append(test_loader)
-
-
-        print(f"[INFO] Returning {len(trainloaders)} clients with data (out of requested {num_clients})")
-        return trainloaders, valloaders, testloaders
-    else:
-        raise ValueError(f"Unknown partition strategy: {cfg.partition.strategy}")
-
+    alpha = getattr(cfg, "alpha", 0.5)
+    num_classes = len(set(train_labels))
+    client_train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
+    client_val_idcs = dirichlet_partition(val_labels, num_clients, num_classes, alpha)
+    client_test_idcs = dirichlet_partition(test_labels, num_clients, num_classes, alpha)
+ 
     # 4) Wrap in DataLoaders for drichlet ------------------------------------------------
     trainloaders, valloaders, testloaders= [], [], []
 
@@ -156,4 +118,5 @@ def build_dataloaders(cfg, train_ds: Dataset, val_ds: Dataset, test_ds: Dataset)
         testloaders.append(test_loader)
 
     print(f"[INFO] Returning {len(trainloaders)} clients with data (out of requested {num_clients})")
+    cache_train_ds, cache_val_ds, cache_test_ds = trainloaders, valloaders, testloaders
     return trainloaders, valloaders, testloaders

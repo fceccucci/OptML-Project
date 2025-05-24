@@ -7,27 +7,24 @@ dataset:
   root: /tmp/data
 
 dataloader:
-  num_workers: 16
-  pin_memory: True
+  num_workers: 2
+  pin_memory: False
   batch_size: 64
-
 
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
-  local_epochs: 5
+  local_epochs: 1
   lr: 1e-3
-  client_fraction: 0.4
+  client_fraction: 1
 
 task:
-  num_of_rounds: 1000
+  num_of_rounds: 10
 
 backend_config:
   client_resources:
-    num_cpus: 8     # each client may use up to 8 CPU cores
-    num_gpus: 0.10  # each client may use 10% of a single GPU’s VRAM
-
-
+    num_cpus: 10    # each client may use up to 8 CPU cores
+    num_gpus: 0     # Leave it to zero if you have no cpus
 
 trainer:
   accelerator: auto

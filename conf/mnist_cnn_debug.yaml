@@ -16,7 +16,7 @@ algorithm:
   name: fedavg
   local_epochs: 1
   lr: 1e-3
-  client_fraction: 0.4
+  client_fraction: 1
 
 task:
   num_of_rounds: 2
@@ -28,4 +28,4 @@ backend_config:
 
 trainer:
   accelerator: auto
-  precision:   16
+  precision:   16-mixed

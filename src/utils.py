@@ -3,8 +3,10 @@
 import logging
 from collections import OrderedDict
 import os
+import random
 from typing import Any, Dict, List, Tuple
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from flwr_datasets import FederatedDataset
@@ -74,6 +76,13 @@ def set_parameters(model, parameters):
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
     model.load_state_dict(state_dict, strict=True)
 
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def apply_transforms(batch):
     """Apply transforms to the partition from FederatedDataset."""
@@ -117,26 +126,43 @@ def load_data(partition_id, num_partitions, cfg):
     partition_train_valid = partition_full["train"].train_test_split(
         train_size=0.75, seed=42
     )
+
+    def federated_collate(batch):
+        # batch is a list of length 1 when partition yields whole‐batch dicts,
+        # or length N if partition yields single samples; in both cases we
+        # just flatten it into one dict:
+        # if isinstance(batch, list) and isinstance(batch[0], dict):
+        #  batch = batch[0]  # drop the extra list‐of‐dict
+        # # now batch["image"] is a Python list of Tensors
+        # # images = torch.stack(batch["image"], dim=0)            # (B, C, H, W)
+        # # labels = torch.tensor(batch["label"], dtype=torch.long)  # (B,)
+        # return batch["image"], batch["label"]
+    
+        return batch
+
     trainloader = DataLoader(
         partition_train_valid["train"],
         shuffle=True,
         batch_size=cfg.dataloader.batch_size,
         num_workers=cfg.dataloader.num_workers,
-        pin_memory=cfg.dataloader.pin_memory
+        pin_memory=cfg.dataloader.pin_memory,
+        collate_fn=federated_collate,
     )
     valloader = DataLoader(
         partition_train_valid["test"],
         shuffle=False,
         batch_size=cfg.dataloader.batch_size,
         num_workers=cfg.dataloader.num_workers,
-        pin_memory=cfg.dataloader.pin_memory
+        pin_memory=cfg.dataloader.pin_memory,
+        collate_fn=federated_collate,
     )
     testloader = DataLoader(
         partition_full["test"],
         shuffle=False,
         batch_size=cfg.dataloader.batch_size,
         num_workers=cfg.dataloader.num_workers,
-        pin_memory=cfg.dataloader.pin_memory
+        pin_memory=cfg.dataloader.pin_memory,
+        collate_fn=federated_collate,
     )
     return trainloader, valloader, testloader
 

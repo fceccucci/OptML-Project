@@ -12,6 +12,7 @@ from src.utils import (
     get_parameters,
     set_parameters,
     load_data,
+    set_seed,
 )
 
 
@@ -33,7 +34,9 @@ class FlowerClient(NumPyClient):
                             accelerator=self.cfg.trainer.accelerator,
                             precision=self.cfg.trainer.precision,
                             enable_progress_bar=False)
-        trainer.fit(self.model, self.train_loader, self.val_loader)
+        # TODO val loader not needed in 1 to 5 epochs!
+        trainer.fit(self.model, train_dataloaders=self.train_loader)
+        # trainer.fit(self.model, self.train_loader, self.val_loader)
         metrics  = {k: v.detach().cpu().item()       # convert Tensor → Python float
             for k, v in trainer.callback_metrics.items()}
         # TODO how to get the metrics out of this?!
@@ -52,8 +55,8 @@ class FlowerClient(NumPyClient):
 
 def client_fn(context: Context) -> Client:
     """Construct a Client that will be run in a ClientApp."""
-    if 'config' in context.run_config:
-        cfg = context.run_config['config']
+    cfg = context.cfg
+    set_seed(42)
     # TODO this is outdated
     # config_name = f"{context.run_config['config-name']}" if context.run_config else CONFIG_FILE
     # config_path = f"conf/{config_name}.yaml"
@@ -65,11 +68,12 @@ def client_fn(context: Context) -> Client:
     num_partitions = context.node_config["num-partitions"] #TODO maybe use this value instead of the one in the config
     assert num_partitions == cfg.dataset.num_clients
     
-    train_loader, val_loader, test_loader = load_data(partition_id, num_partitions, cfg)
+    # train_loader, val_loader, test_loader = load_data(partition_id, num_partitions, cfg)
 
-    # train_dataset, val_dataset, test_dataset = load_dataset(cfg.dataset, cfg.debug)
-    # train_loader, val_loader, test_loader= build_dataloaders(cfg.dataset, train_ds=train_dataset, val_ds=val_dataset, test_ds=test_dataset)
-
+    # TODO the actual dataset has a lot of buffering problems
+    train_loader, val_loader, test_loader= build_dataloaders(cfg.dataset, cfg.debug)
+    train_loader, val_loader, test_loader = train_loader[partition_id], val_loader[partition_id], test_loader[partition_id]
+    
     # Read run_config to fetch hyperparameters relevant to this run
     # max_epochs = context.run_config["max-epochs"]
     max_epochs = cfg.algorithm.local_epochs

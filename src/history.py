@@ -14,8 +14,8 @@ class WAndBHistory(History):
         # Initialize base History
         super().__init__()
         # Start a new wandb run
-        if wandb.run is not None:
-            wandb.init(project=project, **wandb_init_kwargs)
+        # if wandb.run is not None:
+        #     wandb.init(project=project, **wandb_init_kwargs)
 
     def add_loss_distributed(self, server_round: int, loss: float) -> None:
         # Log distributed loss

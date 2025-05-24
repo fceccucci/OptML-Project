@@ -20,12 +20,12 @@ def main(cfg: DictConfig) -> None:
 
     # Wrap the client_fn to inject our Hydra config into the run context
     def hydra_client_fn(context: Context) -> Client:
-        context.run_config["config"] = cfg
+        context.cfg = cfg
         return client_fn(context)
 
     # Wrap the server_fn similarly
     def hydra_server_fn(context: Context) -> ServerAppComponents:
-        context.run_config["config"] = cfg
+        context.cfg = cfg
         return server_fn(context)
 
     # Build Flower apps

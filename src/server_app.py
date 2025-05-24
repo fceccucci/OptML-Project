@@ -5,7 +5,7 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig, SimpleClie
 from flwr.server.strategy import FedAvg
 from omegaconf import OmegaConf
 import torch
-from src.utils import get_parameters, set_parameters, standard_aggregate, load_data_test_data_loader, load_data, set_seed
+from src.utils import get_parameters, set_parameters, standard_aggregate, load_data_test_data_loader, load_data, set_seed, get_best_device
 from src.model import SmallCNN
 
 from src.server import CustomServer
@@ -44,7 +44,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     # best = { 'acc': 0, 'parameter': None }
     def evaluate_global(server_rounds, parameters, config):
         set_parameters(global_model, parameters)
-        trainer = pl.Trainer(enable_progress_bar=False)
+        trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device(),)
         results = trainer.test(global_model, test_loader, verbose=False)
         loss = results[0]["test_loss"]
         # acc = results[0]["test_acc"]

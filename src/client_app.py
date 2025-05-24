@@ -13,6 +13,7 @@ from src.utils import (
     set_parameters,
     load_data,
     set_seed,
+    get_best_device,
 )
 
 
@@ -31,9 +32,10 @@ class FlowerClient(NumPyClient):
         set_parameters(self.model, parameters)
 
         trainer = pl.Trainer(max_epochs=self.max_epochs,
-                            accelerator=self.cfg.trainer.accelerator,
+                            accelerator=get_best_device(),
                             precision=self.cfg.trainer.precision,
-                            enable_progress_bar=False)
+                            enable_progress_bar=False,
+                       )
         # TODO val loader not needed in 1 to 5 epochs!
         trainer.fit(self.model, train_dataloaders=self.train_loader)
         # trainer.fit(self.model, self.train_loader, self.val_loader)
@@ -46,7 +48,7 @@ class FlowerClient(NumPyClient):
         """Evaluate the model on the data this client has."""
         set_parameters(self.model, parameters)
 
-        trainer = pl.Trainer(enable_progress_bar=False)
+        trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device())
         results = trainer.test(self.model, self.test_loader, verbose=False)
         loss = results[0]["test_loss"]
 

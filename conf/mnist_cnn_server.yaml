@@ -23,9 +23,13 @@ task:
   num_of_rounds: 30
 
 backend_config:
+  init_args:
+    num_cpus: 10
+    num_gpus: 1
+
   client_resources:
     num_cpus: 2     # each client may use up to 8 CPU cores
-    num_gpus: 0.05  # each client may use 10% of a single GPU’s VRAM
+    num_gpus: 0.20  # each client may use 10% of a single GPU’s VRAM
 
 
 

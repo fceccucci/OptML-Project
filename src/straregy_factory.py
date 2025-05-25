@@ -1,4 +1,4 @@
-from flwr.server.strategy import FedAvg, FedProx, FedAdam
+from flwr.server.strategy import FedAvg, FedProx, FedAdam, FedYogi, FedAvgM
 
 def get_fl_algo(cfg, global_model_init, evaluate_global, standard_aggregate):
     name = cfg.algorithm.name.lower()
@@ -18,5 +18,9 @@ def get_fl_algo(cfg, global_model_init, evaluate_global, standard_aggregate):
         return FedProx(proximal_mu=cfg.algorithm.mu, **common_kwargs)
     elif name == "fedadam":
         return FedAdam(eta=cfg.algorithm.eta, **common_kwargs)
+    elif name == "fedyogi":
+        return FedYogi(eta=cfg.algorithm.eta, **common_kwargs)
+    elif name == "fedavgm":
+        return FedAvgM(**common_kwargs)
     else:
         raise ValueError(f"Unknown algorithm: {name}")

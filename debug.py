@@ -12,10 +12,21 @@ from flwr.common import Context
 from src.utils import flatten_dict
 from hydra.core.hydra_config import HydraConfig
 import wandb
+import os, socket
+
+def find_free_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 @hydra.main(version_base="1.1", config_path="conf", config_name="mnist_cnn_debug")
 def main(cfg: DictConfig) -> None:
     # Convert the entire Hydra config into a plain dict (so it's JSON-serializable)
+    # only set once if not already in the environment:
+    os.environ["MASTER_PORT"] = str(find_free_port())
+
     run_name = f"{cfg.algorithm.name}_cf_{cfg.algorithm.client_fraction}_le_{cfg.algorithm.local_epochs}_alpha_{cfg.dataset.alpha}"
 
     hydra_config = OmegaConf.to_container(cfg, resolve=True)

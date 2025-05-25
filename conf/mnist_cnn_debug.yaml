@@ -16,6 +16,8 @@ algorithm:
   name: fedavg
   local_epochs: 1
   lr: 0.01
+  mu: 0.01        # Only for fedprox
+  eta: 0.001      # Only for fedadam
   client_fraction: 0.1
 
 task:
@@ -23,7 +25,7 @@ task:
 
 backend_config:
   client_resources:
-    num_cpus: 4     # each client may use up to 8 CPU cores
+    num_cpus: 1     # each client may use up to 8 CPU cores
     num_gpus: 0     # Leave it to zero if you have no cpus
 
 trainer:

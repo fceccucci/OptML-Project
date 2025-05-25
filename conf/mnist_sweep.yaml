@@ -1,15 +1,15 @@
 defaults:
   - _self_
-  - mnist_cnn_server
- # - mnist_cnn_debug
+  #- mnist_cnn_server
+  - mnist_cnn_debug
  # - override hydra/launcher: joblib
 
 hydra:
+  sweeper:
+    params:
+      algorithm.name: fedavg, fedprox, fedadam
+      algorithm.client_fraction: 0.1, 0.5, 1
+      dataset.alpha: 1000, 1, 0.1, 0.001
   sweep:
     dir: multirun_logs/${hydra.job.override_dirname}
     subdir: ${hydra.job.num}
-  sweeper:
-    params:
-      algorithm.client_fraction: 0.1, 0.5, 1
-      algorithm.local_epochs:   1, 5
-      dataset.alpha:            1000, 1, 0.1, 0.001

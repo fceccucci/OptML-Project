@@ -15,9 +15,12 @@ dataloader:
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
-  local_epochs: 5
+  local_epochs: 1
   lr: 0.01
-  client_fraction: 1
+  mu: 0.01        # Only for fedprox
+  eta: 0.001      # Only for fedadam
+  momentum: 0.9   # Only for fedavgm
+  client_fraction: 0.1
 
 task:
   num_of_rounds: 50

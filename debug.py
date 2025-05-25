@@ -12,11 +12,9 @@ from flwr.common import Context
 from src.utils import flatten_dict
 from hydra.core.hydra_config import HydraConfig
 import wandb
-import multiprocessing as mp
 
 @hydra.main(version_base="1.1", config_path="conf", config_name="mnist_cnn_debug")
 def main(cfg: DictConfig) -> None:
-    mp.set_start_method("fork")
     # Convert the entire Hydra config into a plain dict (so it's JSON-serializable)
     run_name = f"{cfg.algorithm.name}_cf_{cfg.algorithm.client_fraction}_le_{cfg.algorithm.local_epochs}_alpha_{cfg.dataset.alpha}"
 
@@ -31,9 +29,7 @@ def main(cfg: DictConfig) -> None:
                name=run_name, 
                reinit=True,
                group="federated_sweep")
-    
-    print("Cached?")
-    build_dataloaders(cfg.dataset, cfg.dataloader, cfg.debug)
+
 
     # Wrap the client_fn to inject our Hydra config into the run context
     def hydra_client_fn(context: Context) -> Client:

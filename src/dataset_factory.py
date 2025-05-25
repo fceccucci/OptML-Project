@@ -6,6 +6,7 @@ client-specific subsets (IID or Dirichlet non-IID) and return a list of
 DataLoaders so Flower can simulate “virtual clients” on a single machine.
 """
 
+import threading
 from typing import List, Tuple
 import os
 import torch
@@ -50,85 +51,62 @@ def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
         test_ds  = Subset(test_ds,  range(min(len(test_ds),  50)))
     return train_ds, val_ds, test_ds
 
-cache_alpha = 0
-cache_train_ds, cache_val_ds, cache_test_ds = None, None, None
+# single‐slot cache for the raw datasets
+_raw_dataset_cache: Tuple = None
+_cache_lock = threading.Lock()
 
-def build_dataloaders(cfg, dataloader_cfg, debug) -> Tuple[List[DataLoader], List[DataLoader]]:
-    alpha = cfg.alpha
+def build_dataloaders(
+    cfg,
+    dataloader_cfg,
+    debug: bool,
+    cid: int
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """
+    Returns the (train, val, test) DataLoaders for client `cid`.
+    Raw datasets are loaded once and then cached forever.
+    Partitioning (dirichlet) still runs each call to reflect cfg.alpha.
+    """
+    global _raw_dataset_cache
 
-    global cache_train_ds, cache_val_ds, cache_test_ds, cache_alpha
-    if cache_train_ds is not None and cache_val_ds is not None and cache_test_ds is not None:
-        if cache_alpha == alpha:
-            log(INFO, "Used cached dataloaders")
-            return cache_train_ds, cache_val_ds, cache_test_ds
+    # 1) Load (or reuse) the raw datasets
+    with _cache_lock:
+        if _raw_dataset_cache is None:
+            train_ds, val_ds, test_ds = load_dataset(cfg, debug)
+            _raw_dataset_cache = (train_ds, val_ds, test_ds)
+            log(INFO, "Loaded & cached raw datasets")
         else:
-            log(WARN, "Tryed to access wrong cache!")
-        
-    train_ds, val_ds, test_ds = load_dataset(cfg, debug)
-    
-    num_clients = cfg.num_clients
+            train_ds, val_ds, test_ds = _raw_dataset_cache
+            log(INFO, "Reusing cached raw datasets")
 
-    # 2) Extract labels for partitioning ------------------------------------
+    alpha = cfg.alpha
     train_labels = [lbl for _, lbl in train_ds]
-    val_labels = [lbl for _, lbl in val_ds]
-    test_labels = [lbl for _, lbl in test_ds]
+    val_labels   = [lbl for _, lbl in val_ds]
+    test_labels  = [lbl for _, lbl in test_ds]
 
-    # 3) Partition indices by strategy --------------------------------------
+    num_clients = cfg.num_clients
     num_classes = len(set(train_labels))
-    client_train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
-    client_val_idcs = dirichlet_partition(val_labels, num_clients, num_classes, alpha)
-    client_test_idcs = dirichlet_partition(test_labels, num_clients, num_classes, alpha)
- 
-    # 4) Wrap in DataLoaders for drichlet ------------------------------------------------
-    trainloaders, valloaders, testloaders= [], [], []
+    train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
+    val_idcs   = dirichlet_partition(val_labels,   num_clients, num_classes, alpha)
+    test_idcs  = dirichlet_partition(test_labels,  num_clients, num_classes, alpha)
 
-    for cid in range(num_clients):
-        train_indices = client_train_idcs[cid]
-        val_indices = client_val_idcs[cid]
-        test_indices = client_test_idcs[cid]
+    train_idx = train_idcs[cid]
+    val_idx   = val_idcs[cid]
+    test_idx  = test_idcs[cid]
 
-        if len(train_indices) == 0:
-            print(f"[WARNING] Skipping client {cid}: no training data")
-            continue
-        if len(test_indices) == 0:
-            print(f"[WARNING] Skipping client {cid}: no test data")
-            continue
-
-        train_loader = DataLoader(
-            Subset(train_ds, train_indices),
-            shuffle=True,
+    def make_loader(ds, indices, shuffle):
+        return DataLoader(
+            Subset(ds, indices),
+            shuffle=shuffle,
             batch_size=dataloader_cfg.batch_size,
             num_workers=dataloader_cfg.num_workers,
             pin_memory=dataloader_cfg.pin_memory,
-            multiprocessing_context='fork',
-            drop_last=False,
+            drop_last=False if shuffle else False,
         )
 
-        val_loader = DataLoader(
-            Subset(val_ds, val_indices),
-            shuffle=False,
-            batch_size=dataloader_cfg.batch_size,
-            num_workers=dataloader_cfg.num_workers,
-            pin_memory=dataloader_cfg.pin_memory,
-            multiprocessing_context='fork',
-        )
+    train_loader = make_loader(train_ds, train_idx, shuffle=True)
+    val_loader   = make_loader(val_ds,   val_idx,   shuffle=False)
+    test_loader  = make_loader(test_ds,  test_idx,  shuffle=False)
 
-        test_loader = DataLoader(
-            Subset(test_ds, test_indices),
-            shuffle=False,
-            batch_size=dataloader_cfg.batch_size,
-            num_workers=dataloader_cfg.num_workers,
-            pin_memory=dataloader_cfg.pin_memory,
-            multiprocessing_context='fork',
-        )
+    log(INFO, f"[Client {cid}] {len(train_idx)} train / {len(test_idx)} test samples")
 
-
-        print(f"[INFO] Client {cid}: {len(train_indices)} train samples, {len(test_indices)} test samples")
-        trainloaders.append(train_loader)
-        valloaders.append(val_loader)
-        testloaders.append(test_loader)
-
-    print(f"[INFO] Returning {len(trainloaders)} clients with data (out of requested {num_clients})")
-    cache_train_ds, cache_val_ds, cache_test_ds = trainloaders, valloaders, testloaders
-    cache_alpha = alpha
-    return trainloaders, valloaders, testloaders
+    return train_loader, val_loader, test_loader

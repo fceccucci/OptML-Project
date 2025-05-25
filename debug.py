@@ -16,7 +16,7 @@ import wandb
 @hydra.main(version_base="1.1", config_path="conf", config_name="mnist_cnn_debug")
 def main(cfg: DictConfig) -> None:
     # Convert the entire Hydra config into a plain dict (so it's JSON-serializable)
-    run_name = f"cf_{cfg.algorithm.client_fraction}_le_{cfg.algorithm.local_epochs}_alpha_{cfg.dataset.alpha}"
+    run_name = f"{cfg.algorithm.name}_cf_{cfg.algorithm.client_fraction}_le_{cfg.algorithm.local_epochs}_alpha_{cfg.dataset.alpha}"
 
     hydra_config = OmegaConf.to_container(cfg, resolve=True)
 

@@ -18,6 +18,7 @@ algorithm:
   lr: 0.01
   mu: 0.01        # Only for fedprox
   eta: 0.001      # Only for fedadam
+  momentum: 0.9   # Only for fedavgm
   client_fraction: 0.1
 
 task:

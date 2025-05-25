@@ -16,11 +16,11 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 5
-  lr: 0.001
+  lr: 0.01
   client_fraction: 1
 
 task:
-  num_of_rounds: 20
+  num_of_rounds: 50
 
 backend_config:
   init_args:

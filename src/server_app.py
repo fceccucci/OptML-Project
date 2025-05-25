@@ -57,18 +57,6 @@ def server_fn(context: Context) -> ServerAppComponents:
             # torch.save(best_parameter, "best_model.pt")
         return loss, results[0]
 
-
-    # TODO build strategy factory
-    #strategy = FedAvg(
-    #    min_fit_clients=cfg.dataset.num_clients,
-     #   min_available_clients=cfg.dataset.num_clients,
-     #   fraction_fit=cfg.algorithm.client_fraction,
-     #   fraction_evaluate=cfg.algorithm.client_fraction,
-     #   initial_parameters=global_model_init,
-     #   evaluate_fn=evaluate_global,
-    #   evaluate_metrics_aggregation_fn=standard_aggregate,
-     #   fit_metrics_aggregation_fn=standard_aggregate, 
-    #)
     # Build strategy using factory
     strategy = get_fl_algo(cfg, global_model_init, evaluate_global, standard_aggregate)
 

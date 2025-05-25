@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - mnist_cnn_server
-  - mnist_cnn_debug
+  # - mnist_cnn_debug
 
 hydra:
   sweeper:

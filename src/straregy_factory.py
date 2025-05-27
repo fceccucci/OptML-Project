@@ -19,13 +19,18 @@ def get_fl_algo(cfg, global_model_init, evaluate_global, standard_aggregate):
     elif name == "fedadam":
         return FedAdam(eta=cfg.algorithm.eta, **common_kwargs)
     elif name == "fedyogi":
-        return FedYogi(eta=cfg.algorithm.eta, **common_kwargs)
+        return FedYogi(
+            eta=cfg.algorithm.eta,
+            beta_1=cfg.algorithm.beta1,
+            beta_2=cfg.algorithm.beta2,
+            tau=cfg.algorithm.tau,
+            **common_kwargs,
+        )
     if name == "fedadam":
         return FedAdam(
             eta        = cfg.algorithm.eta,        # final LR, e.g. 0.10
             eta_late   = cfg.algorithm.eta,        # keep the same later
-            eta_warmup = cfg.algorithm.eta_warmup, # e.g. 5   → rounds 0-4 use
-                                                #            eta*(r+1)/5
+            eta_warmup = cfg.algorithm.eta_warmup, 
             beta_1     = cfg.algorithm.beta1,
             beta_2     = cfg.algorithm.beta2,
             tau        = cfg.algorithm.tau,

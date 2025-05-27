@@ -36,6 +36,7 @@ class FlowerClient(NumPyClient):
                             precision=self.cfg.trainer.precision,
                             enable_progress_bar=False,
                             enable_checkpointing=False,  
+                            gradient_clip_val=1.0,
                        )
         # TODO val loader not needed in 1 to 5 epochs!
         trainer.fit(self.model, train_dataloaders=self.train_loader)

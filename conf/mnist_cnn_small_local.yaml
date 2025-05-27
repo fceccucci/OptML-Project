@@ -13,16 +13,20 @@ dataloader:
 
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
-  name: fedavg # fedavg, fedprox, fedadam, fednova
+  name: fedadam # fedavg, fedprox, fedadam, fednova
   local_epochs: 5
   lr: 0.01
-  mu: 0.01        # Only for fedprox
-  eta: 0.001      # Only for fedadam
+  mu: 0.1        # Only for fedprox
+  eta: 0.1       # server step
+  eta_warmup: 2  
+  beta1: 0.9
+  beta2: 0.99
+  tau:  5e-6    # Only for fedadam
   momentum: 0.9   # Only for fedavgm
-  client_fraction: 1
+  client_fraction: 1.0
 
 task:
-  num_of_rounds: 10
+  num_of_rounds: 20
 
 backend_config:
   client_resources:
@@ -32,3 +36,4 @@ backend_config:
 trainer:
   accelerator: auto
   precision:   16-mixed
+  gradient_clip_val: 1.0 

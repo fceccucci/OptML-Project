@@ -7,6 +7,7 @@ from src.utils import set_seed, get_filename_from_cfg
 from src.utils import evaluate_on_mnist_test, evaluate_on_cifar10_test
 import warnings
 
+
 set_seed(42)
 warnings.filterwarnings("ignore")
 logging.getLogger("ray").setLevel(logging.ERROR)
@@ -15,40 +16,43 @@ log = logging.getLogger(__name__)
 
 @hydra.main(config_path="conf", config_name="cifar_resnet18_iid.yaml", version_base="1.3")
 def main(cfg: DictConfig):
-    torch.backends.cudnn.benchmark = True
-    log.info(OmegaConf.to_yaml(cfg, resolve=True))
 
-    # 1. Build components
-    trainloaders, valloaders = build_dataloaders(cfg.dataset)
+    # Build data
+    trainloaders, valloaders, G_dataset = build_dataloaders(cfg.dataset)
+
+    # Warm-up on G
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    warmup_model = build_model(cfg.model).to(device)
+    opt = torch.optim.SGD(warmup_model.parameters(), lr=cfg.algorithm.lr, momentum=0.9)
+    loss_fn = torch.nn.CrossEntropyLoss()
+
+    loaderG = torch.utils.data.DataLoader(G_dataset, batch_size=cfg.dataset.batch_size, shuffle=True)
+    warmup_model.train()
+    for _ in range(cfg.algorithm.warmup_epochs):
+        for x, y in loaderG:
+            x, y = x.to(device), y.to(device)
+            opt.zero_grad()
+            loss_fn(warmup_model(x), y).backward()
+            opt.step()
+
+    # Extract warm-up weights
+    initial_params = [val.cpu().numpy() for val in warmup_model.state_dict().values()]
+
+    # Build FL server with warm-up
     model_fn = lambda: build_model(cfg.model)
-    server = build_server(cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task)
-
-    # 2. Set client resources
-    num_clients = len(trainloaders)
-    num_gpus = torch.cuda.device_count()
-    client_resources = {"num_cpus": 1}
-    if num_gpus > 0:
-        client_resources["num_gpus"] = num_gpus / num_clients
-
-    # 3. Federated training
+    server = build_server(
+        cfg.algorithm, model_fn, trainloaders, valloaders, cfg.task,
+        initial_parameters=initial_params
+    )
+    
+    # Run federated training
     num_rounds = getattr(cfg.algorithm, "rounds", 5)
-    server.fit(num_rounds=num_rounds, client_resources=client_resources)
+    server.fit(num_rounds=num_rounds)
 
-    # 4. Save model
-    filename = get_filename_from_cfg(cfg=cfg, num_rounds=num_rounds)
+    # Save & evaluate
+    filename = get_filename_from_cfg(cfg, num_rounds)
     torch.save(server.global_model.state_dict(), filename)
-    log.info(f"Saved global model to {filename}")
-
-    # 5. Evaluate
-     # 5. Evaluate on correct test set
-    dataset_name = cfg.dataset.name.lower()
-    if dataset_name == "mnist":
-        evaluate_on_mnist_test(cfg.model, filename)
-    elif dataset_name == "cifar10":
-        evaluate_on_cifar10_test(cfg.model, filename)
-    else:
-        log.warning(f"No evaluation implemented for dataset: {dataset_name}")
-
+    evaluate_on_mnist_test(cfg.model, filename)
 
 if __name__ == "__main__":
     main()

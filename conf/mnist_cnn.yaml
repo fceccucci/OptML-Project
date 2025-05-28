@@ -6,7 +6,9 @@ dataset:
   num_clients: 10
   partition:
     strategy: dirichlet
-    alpha: 0.0001
+    alpha: 0.01
+    share_fraction: 0.1
+  batch_size: 32
   root: /tmp/data
 
 model:
@@ -18,8 +20,10 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 5
+  warmup_epochs: 5
   lr: 0.01
   client_fraction: 1.0 # Not realitic, should be 0.4 and a low value for this parameter would be 0.1
+  
 task:
   num_classes: 10
   loss:
@@ -27,3 +31,4 @@ task:
   metrics:
     top1:
       _target_: src.metrics.top1_accuracy  # or omit if not used
+

@@ -14,6 +14,9 @@ import numpy as np
 import random
 import torchvision
 import torchvision.transforms as transforms
+import re
+import os
+
 
 def set_seed(seed=42):
     """
@@ -30,10 +33,17 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
+def sanitize_filename_component(s: str) -> str:
+    # Remove or replace characters that are invalid in file names
+    s = str(s)
+    s = re.sub(r"[{}:,']", "", s) 
+    s = s.replace(" ", "_")         
+    s = s.replace(".", "")          
+    return s
+
 def get_filename_from_cfg(cfg, num_rounds):
     """
-    Automatically generate a filename for the saved model based on config parameters.
-    Includes model, dataset, algorithm, partition type, and any relevant hyperparameters.
+    Automatically generate a safe filename for the saved model based on config parameters.
     """
     model_name = cfg.model.arch
     dataset_name = cfg.dataset.name
@@ -41,27 +51,28 @@ def get_filename_from_cfg(cfg, num_rounds):
 
     # Partition type (iid or non-iid/alpha)
     if hasattr(cfg.dataset, "partition") and cfg.dataset.partition is not None:
-        partition_type = str(cfg.dataset.partition)
+        partition_type = sanitize_filename_component(cfg.dataset.partition)
     elif hasattr(cfg.dataset, "alpha") and cfg.dataset.alpha is not None:
         partition_type = f"alpha{str(cfg.dataset.alpha).replace('.', '')}"
     else:
         partition_type = "iid"
 
-    # Add any other relevant hyperparameters from cfg (customize as needed)
+    # Add any other relevant hyperparameters from cfg
     extra_params = []
-    # Add client learning rate if present
     if hasattr(cfg.algorithm, "lr"):
         extra_params.append(f"clientLR{cfg.algorithm.lr}")
-    # Add client fraction if present
     if hasattr(cfg.algorithm, "client_fraction"):
         extra_params.append(f"clientFrac{cfg.algorithm.client_fraction}")
-    # Add batch size if present
     if hasattr(cfg.dataset, "batch_size"):
         extra_params.append(f"bs{cfg.dataset.batch_size}")
 
     # Compose filename
     param_str = "_".join([partition_type] + extra_params) if extra_params else partition_type
     filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_{param_str}_rounds{num_rounds}_global.pt"
+
+    # Ensure the directory exists
+    os.makedirs("TrainedModels", exist_ok=True)
+
     return filename
 
 def evaluate_on_mnist_test(model_cfg, model_weights_path, batch_size=64, verbose=True):

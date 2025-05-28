@@ -9,9 +9,10 @@ DataLoaders so Flower can simulate “virtual clients” on a single machine.
 from typing import List, Tuple
 import os
 import torch
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, ConcatDataset
 import torchvision
 from torchvision import transforms
+import random
 
 # --- Partition helpers ------------------------------------------------------
 try:
@@ -28,101 +29,67 @@ except ImportError as e:
 # --------------------------------------------------------------------------- #
 #  PUBLIC API                                                                 #
 # --------------------------------------------------------------------------- #
-def build_dataloaders(cfg) -> Tuple[List[DataLoader], List[DataLoader]]:
+def build_dataloaders(cfg) -> Tuple[List[DataLoader], List[DataLoader], torch.utils.data.Dataset]:
+    # Load full train + test
     root = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
     batch_size = getattr(cfg, "batch_size", 32)
     num_clients = cfg.num_clients
 
-    # 1) Load dataset -------------------------------------------------------
-    name = cfg.name.lower()
-    if name == "cifar10":
-        tfm = transforms.Compose([transforms.ToTensor()])
-        train_ds = torchvision.datasets.CIFAR10(root, train=True, download=True, transform=tfm)
-        test_ds = torchvision.datasets.CIFAR10(root, train=False, download=True, transform=tfm)
-    elif name == "mnist":
-        tfm = transforms.Compose([
+    tfm = transforms.Compose([
             transforms.Grayscale(num_output_channels=3),
             transforms.ToTensor()
         ])
-        train_ds = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
-        test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
-    else:
-        raise ValueError(f"Unsupported dataset: {cfg.name}")
+    train_ds = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
+    test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
 
-    # 2) Extract labels for partitioning ------------------------------------
-    train_labels = [lbl for _, lbl in train_ds]
-    test_labels = [lbl for _, lbl in test_ds]
+    # 1) Split into D (clients) and G (shared) by share_fraction β
+    total = len(train_ds)
+    beta = getattr(cfg.partition, "share_fraction", 0.10)
+    G_size = int(beta * total)
+    labels = train_ds.targets.tolist()
+    num_classes = len(set(labels))
+    per_class = G_size // num_classes
 
-    # 3) Partition indices by strategy --------------------------------------
-    strat = cfg.partition.strategy.lower()
-    alpha = getattr(cfg.partition, "alpha", 0.5)
+    random.seed(getattr(cfg, "seed", 42))
+    class_indices = {c: [] for c in range(num_classes)}
+    for idx, lbl in enumerate(labels):
+        if len(class_indices[lbl]) < per_class:
+            class_indices[lbl].append(idx)
+        if all(len(v) == per_class for v in class_indices.values()): break
 
-    if strat == "dirichlet":
-        num_classes = len(set(train_labels))
-        client_train_idcs = dirichlet_partition(train_labels, num_clients, num_classes, alpha)
-        client_test_idcs = dirichlet_partition(test_labels, num_clients, num_classes, alpha)
-    elif strat == "iid":
-        def get_split_sizes(total_len, n_clients):
-            base = total_len // n_clients
-            leftover = total_len % n_clients
-            return [base + 1 if i < leftover else base for i in range(n_clients)]
+    G_indices = [i for sub in class_indices.values() for i in sub]
+    D_indices = [i for i in range(total) if i not in G_indices]
+    G_dataset = Subset(train_ds, G_indices)
 
-        train_split_sizes = get_split_sizes(len(train_ds), num_clients)
-        test_split_sizes = get_split_sizes(len(test_ds), num_clients)
+     # 3) Partition D non-IID via Dirichlet
+    D_labels = [labels[i] for i in D_indices]
+    partition = dirichlet_partition(D_labels, num_clients, num_classes, getattr(cfg.partition, "alpha", 0.5))
+    # FedLab returns a dict mapping client_id to index list
+    client_train_indices = []
+    for cid in range(num_clients):
+        idxs = partition[cid]
+        client_train_indices.append([D_indices[j] for j in idxs])
 
-        train_subsets = torch.utils.data.random_split(train_ds, train_split_sizes)
-        test_subsets = torch.utils.data.random_split(test_ds, test_split_sizes)
-
-        trainloaders, valloaders = [], []
-        for cid in range(num_clients):
-            if len(train_subsets[cid]) == 0 or len(test_subsets[cid]) == 0:
-                print(f"[WARNING] Skipping client {cid}: no data")
-                continue
-
-            train_loader = DataLoader(train_subsets[cid], batch_size=batch_size, shuffle=True, drop_last=False)
-            val_loader = DataLoader(test_subsets[cid], batch_size=batch_size, shuffle=False)
-
-            print(f"[INFO] Client {cid}: {len(train_subsets[cid])} train samples, {len(test_subsets[cid])} test samples")
-            trainloaders.append(train_loader)
-            valloaders.append(val_loader)
-
-        print(f"[INFO] Returning {len(trainloaders)} clients with data (out of requested {num_clients})")
-        return trainloaders, valloaders
-    else:
-        raise ValueError(f"Unknown partition strategy: {cfg.partition.strategy}")
-
-    # 4) Wrap in DataLoaders ------------------------------------------------
+    # 3) Build per-client loaders with α-portion of G
+    alpha_dist = getattr(cfg.partition, "alpha_dist", 0.5)
+    per_client_G = int(alpha_dist * len(G_dataset))
     trainloaders, valloaders = [], []
 
     for cid in range(num_clients):
-        train_indices = client_train_idcs[cid]
-        test_indices = client_test_idcs[cid]
+        priv_idxs = client_train_indices[cid]
+        if not priv_idxs: continue
 
-        if len(train_indices) == 0:
-            print(f"[WARNING] Skipping client {cid}: no training data")
-            continue
-        if len(test_indices) == 0:
-            print(f"[WARNING] Skipping client {cid}: no test data")
-            continue
+        private_ds = Subset(train_ds, priv_idxs)
+        random.seed(getattr(cfg, "seed", 42) + cid)
+        client_idxs = random.sample(range(len(G_dataset)), per_client_G)
+        client_G = Subset(G_dataset, client_idxs)
 
-        train_loader = DataLoader(
-            Subset(train_ds, train_indices),
-            batch_size=batch_size,
-            shuffle=True,
-            num_workers=2,
-            drop_last=False,
-        )
+        combined = ConcatDataset([private_ds, client_G])
+        print(f"[INFO] Client {cid}: {len(priv_idxs)} private + {len(client_idxs)} shared = {len(combined)} total train samples")
+        trainloaders.append(DataLoader(combined, batch_size=batch_size, shuffle=True, num_workers=2))
+        valloaders.append(DataLoader(Subset(test_ds, dirichlet_partition([lbl for _,lbl in test_ds],  # reuse split
+                                                          num_clients, num_classes, cfg.partition.alpha)[cid]),
+                                    batch_size=batch_size, shuffle=False, num_workers=2))
+        
 
-        val_loader = DataLoader(
-            Subset(test_ds, test_indices),
-            batch_size=batch_size,
-            shuffle=False,
-            num_workers=2,
-        )
-
-        print(f"[INFO] Client {cid}: {len(train_indices)} train samples, {len(test_indices)} test samples")
-        trainloaders.append(train_loader)
-        valloaders.append(val_loader)
-
-    print(f"[INFO] Returning {len(trainloaders)} clients with data (out of requested {num_clients})")
-    return trainloaders, valloaders
+    return trainloaders, valloaders, G_dataset

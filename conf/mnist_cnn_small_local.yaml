@@ -13,16 +13,17 @@ dataloader:
 
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
-  name: fedadam # fedavg, fedprox, fedadam, fednova
+  name: fedyogi # fedavg, fedprox, fedadam, fednova
   local_epochs: 5
   lr: 0.01
-  mu: 0.1        # Only for fedprox
-  eta: 0.1       # server step
+  mu: 0.7        # Only for fedprox, Heavy mu for stabilization when alpha is small, shows steh efect of mu
+  eta: 0.1   
+  eta_yogi: 0.025  # Only for fedyogi    
   eta_warmup: 2  
-  beta1: 0.9
+  beta1: 0.4
   beta2: 0.99
-  tau:  5e-6    # Only for fedadam
-  momentum: 0.9   # Only for fedavgm
+  tau:  1e-9    # Only for fedadam
+  momentum: 0.5   # Only for fedavgm
   client_fraction: 1.0
 
 task:

@@ -12,7 +12,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import flwr as fl
 from hydra.utils import instantiate
-from flwr.common import Context, parameters_to_ndarrays
+from flwr.common import Context, parameters_to_ndarrays, ndarrays_to_parameters
 
 # --------------------------------------------------------------------------- #
 #  plain PyTorch helpers                                                      #
@@ -90,8 +90,10 @@ def build_server(
     algo_cfg: Any,
     model_fn: Callable[[], nn.Module],
     trainloaders: List[DataLoader],
-    valloaders: List[DataLoader],
+    valloaders: List[DataLoader], 
     task_cfg: Any,
+    initial_parameters=None,
+    
 ):
     """
     Returns
@@ -157,6 +159,10 @@ def build_server(
         )
     else:
         raise ValueError(f"Unsupported FL algorithm: {algo_cfg.name}")
+
+    if initial_parameters is not None:
+        # Convert your list of numpy arrays into Flower Parameters
+        strategy.initial_parameters = ndarrays_to_parameters(initial_parameters)
 
     # -- Simple wrapper so main.py just calls .fit() --------------------------
     class _Server:

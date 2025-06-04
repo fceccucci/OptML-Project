@@ -14,7 +14,7 @@ dataloader:
 
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
-  name: fedavg
+  name: fedavgm
   local_epochs: 1
   lr: 0.01
   mu: 0.01        # Only for fedprox

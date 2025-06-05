@@ -1,3 +1,6 @@
+import os, sys
+sys.path.insert(0, os.getcwd())
+
 from flwr.server import Server
 import timeit
 from logging import INFO

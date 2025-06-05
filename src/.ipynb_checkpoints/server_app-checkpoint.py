@@ -1,71 +1,98 @@
 """pytorchlightning_example: A Flower / PyTorch Lightning app."""
+import os, sys
+import torch
 import pytorch_lightning as pl
+import torchvision
+from torchvision import transforms
 from flwr.common import Context, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig, SimpleClientManager
-from flwr.server.strategy import FedAvg
 from omegaconf import OmegaConf
-import torch
-from src.utils import get_parameters, set_parameters, standard_aggregate, load_data_test_data_loader, load_data, set_seed, get_best_device
+from src.utils import set_seed, get_parameters, set_parameters, standard_aggregate, get_best_device
 from src.model import SmallCNN
 from src.straregy_factory import get_fl_algo
-
 from src.server import CustomServer
-from src.globals import CONFIG_FILE
-
-
-
+from src.dataset_factory import build_shared_dataset
 
 def server_fn(context: Context) -> ServerAppComponents:
-    """Construct components for ServerApp."""
     cfg = context.cfg
     set_seed(42)
-    # TODO this is outdated
-    # config_name = f"{context.run_config['config-name']}" if context.run_config else CONFIG_FILE
-    # config_path = f"conf/{config_name}.yaml"
-    # cfg = OmegaConf.load(config_path)
+    device = get_best_device()
 
-    # Convert model parameters to flwr.common.Parameters
-    global_model = SmallCNN(lr=cfg.algorithm.lr)
-    ndarrays = get_parameters(global_model)
-    global_model_init = ndarrays_to_parameters(ndarrays)
-
-    # common_kwargs = dict(
-    #     fraction_fit=algo_cfg.client_fraction,
-    #     min_fit_clieserver_fnnts=num_clients,
-    #     min_available_clients=num_clients,
-    #     on_fit_config_fn=lambda _rnd: {"local_epochs": local_epochs, "lr": lr},
-    #     evaluate_fn=evaluate_global,
-    #     fit_metrics_aggregation_fn=logging_without_aggregate("train"),
-    #     evaluate_metrics_aggregation_fn=logging_without_aggregate("test"),
-    # )
+    # 1) Build the shared G
+    G_dataset = build_shared_dataset(cfg.dataset)
     
-    test_loader = load_data_test_data_loader(cfg)
+    global_model = SmallCNN(lr=cfg.algorithm.lr).to(device)
 
-    # TODO No global saving possible
-    # best = { 'acc': 0, 'parameter': None }
-    def evaluate_global(server_rounds, parameters, config):
+    if len(G_dataset) > 0:
+        # 2) Warm‐up LightningModel on G for warmup_epochs
+        warmup_model = SmallCNN(
+            num_classes=cfg.model.num_classes,
+            in_channels=1,
+            lr=cfg.model.lr
+        ).to(device)
+    
+        loaderG = torch.utils.data.DataLoader(
+            G_dataset,
+            batch_size=cfg.dataloader.batch_size,
+            shuffle=True,
+            num_workers=cfg.dataloader.num_workers,
+            pin_memory=cfg.dataloader.pin_memory
+        )
+        optimizer = torch.optim.SGD(warmup_model.parameters(), lr=cfg.model.lr, momentum=0.9)
+        loss_fn = torch.nn.CrossEntropyLoss()
+        warmup_model.train()
+        for _ in range(cfg.algorithm.warmup_epochs):
+            for x, y in loaderG:
+                x, y = x.to(device), y.to(device)
+                optimizer.zero_grad()
+                loss_fn(warmup_model(x), y).backward()
+                optimizer.step()
+    
+        # 3) Extract initial parameters (NumPy nd-arrays)
+        initial_nd = get_parameters(warmup_model)
+        initial_parameters = ndarrays_to_parameters(initial_nd)
+        
+    else:
+        # No shared data → skip warmup, use cold start
+        ndarrays = get_parameters(global_model)
+        initial_parameters = ndarrays_to_parameters(ndarrays)
+
+    # 4) Define evaluate_global
+    def evaluate_global(server_round: int, parameters, config):
+        # load parameters into fresh LightningModel & test on hold‐out MNIST test‐set
+        global_model = SmallCNN(
+            num_classes=cfg.model.num_classes,
+            in_channels=1,
+            lr=cfg.model.lr
+        ).to(device)
         set_parameters(global_model, parameters)
-        trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device(), enable_checkpointing=False,)
-        results = trainer.test(global_model, test_loader, verbose=False)
+        trainer = pl.Trainer(
+            enable_progress_bar=False,
+            accelerator=device,
+            enable_checkpointing=False
+        )
+        test_ds = torch.utils.data.DataLoader(
+            torchvision.datasets.MNIST(
+                os.path.expanduser(cfg.dataset.root),
+                train=False, download=True, transform=transforms.ToTensor()
+            ),
+            batch_size=cfg.dataloader.batch_size,
+            shuffle=False
+        )
+        results = trainer.test(global_model, test_ds, verbose=False)
         loss = results[0]["test_loss"]
-        # acc = results[0]["test_acc"]
-        # if acc > best_acc:
-        #     best_acc = acc
-        #     best_parameter = parameters
-        if server_rounds >= (cfg.task.num_of_rounds - 1):
+        metrics = {"test_acc": results[0]["test_acc"]}
+        # Optionally save best at final round
+        if server_round == cfg.task.num_of_rounds:
             torch.save(parameters, "best_model.pt")
-            # torch.save(best_parameter, "best_model.pt")
-        return loss, results[0]
+        return loss, metrics
 
-    # Build strategy using factory
-    strategy = get_fl_algo(cfg, global_model_init, evaluate_global, standard_aggregate)
+    # 5) Build Flower strategy
+    strategy = get_fl_algo(cfg, initial_parameters, evaluate_global, standard_aggregate)
 
-    # Construct ServerConfig
-    num_rounds = cfg.task.num_of_rounds
-    # TODO get out of config
-    config = ServerConfig(num_rounds=num_rounds)
-    # return ServerAppComponents(strategy=strategy, config=config)
-    return ServerAppComponents(server=CustomServer(strategy=strategy, client_manager=SimpleClientManager()), config=config)
-
+    # 6) Return components
+    server_config = ServerConfig(num_rounds=cfg.task.num_of_rounds)
+    custom_server = CustomServer(strategy=strategy, client_manager=SimpleClientManager())
+    return ServerAppComponents(server=custom_server, config=server_config)
 
 app = ServerApp(server_fn=server_fn)

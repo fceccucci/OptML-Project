@@ -1,30 +1,82 @@
-"""
-utils.py
+"""pytorchlightning_example: A Flower / PyTorch Lightning app."""
 
-Utility functions for federated learning experiments, including:
-- Setting random seeds for reproducibility
-- Generating filenames for saved models based on experiment configuration
-- Evaluating trained models on the MNIST test set
-
-These utilities are designed to be imported and used throughout the project.
-"""
-
-import torch
-import numpy as np
-import random
-import torchvision
-import torchvision.transforms as transforms
-import re
+import logging
+from collections import OrderedDict
 import os
+import random
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
+import pytorch_lightning as pl
+import torch
+from flwr_datasets import FederatedDataset
+from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner 
+from torch import nn
+from torch.nn import functional as F
+from torch.utils.data import DataLoader
+from torchvision import transforms
+
+from logging import INFO
+from flwr.common.logger import log
+import torchvision
+
+
+
+logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
+
+
+# class LitAutoEncoder(pl.LightningModule):
+#     def __init__(self) -> None:
+#         super().__init__()
+#         self.encoder = nn.Sequential(
+#             nn.Linear(28 * 28, 64),
+#             nn.ReLU(),
+#             nn.Linear(64, 3),
+#         )
+#         self.decoder = nn.Sequential(
+#             nn.Linear(3, 64),
+#             nn.ReLU(),
+#             nn.Linear(64, 28 * 28),
+#         )
+
+#     def forward(self, x) -> Any:
+#         embedding = self.encoder(x)
+#         return embedding
+
+#     def configure_optimizers(self) -> Adam:
+#         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+#         return optimizer
+
+#     def training_step(self, train_batch, batch_idx) -> torch.Tensor:
+#         x = train_batch["image"]
+#         x = x.view(x.size(0), -1)
+#         z = self.encoder(x)
+#         x_hat = self.decoder(z)
+#         loss = F.mse_loss(x_hat, x)
+#         self.log("train_loss", loss)
+#         return loss
+
+#     def validation_step(self, batch, batch_idx) -> None:
+#         self._evaluate(batch, "val")
+
+#     def test_step(self, batch, batch_idx) -> None:
+#         self._evaluate(batch,# Stolen from strategy implementation!
+def weighted_avg(results: list[tuple[int, float]]) -> float:
+    """Aggregate evaluation results obtained from multiple clients."""
+    num_total_evaluation_examples = sum(num_examples for (num_examples, _) in results)
+    weighted_losses = [num_examples * loss for num_examples, loss in results]
+    return sum(weighted_losses) / num_total_evaluation_examples
+
+def get_parameters(model):
+    return [val.cpu().numpy() for _, val in model.state_dict().items()]
+
+
+def set_parameters(model, parameters):
+    params_dict = zip(model.state_dict().keys(), parameters)
+    state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+    model.load_state_dict(state_dict, strict=True)
 
 def set_seed(seed=42):
-    """
-    Set random seeds for Python, NumPy, and PyTorch to ensure reproducible results.
-
-    Args:
-        seed (int): The random seed to use (default: 42).
-    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -32,129 +84,141 @@ def set_seed(seed=42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+def apply_transforms(batch):
+    """Apply transforms to the partition from FederatedDataset."""
+    batch["image"] = [transforms.functional.to_tensor(img) for img in batch["image"]]
+    return batch
 
-def sanitize_filename_component(s: str) -> str:
-    # Remove or replace characters that are invalid in file names
-    s = str(s)
-    s = re.sub(r"[{}:,']", "", s) 
-    s = s.replace(" ", "_")         
-    s = s.replace(".", "")          
-    return s
+def load_data_test_data_loader(cfg):
+    root = os.path.expanduser(getattr(cfg, "root", cfg.dataset.root))
+    tfm = transforms.Compose([transforms.ToTensor()])
 
-def get_filename_from_cfg(cfg, num_rounds):
-    """
-    Automatically generate a safe filename for the saved model based on config parameters.
-    """
-    model_name = cfg.model.arch
-    dataset_name = cfg.dataset.name
-    algorithm_name = cfg.algorithm.name
+    test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
 
-    # Partition type (iid or non-iid/alpha)
-    if hasattr(cfg.dataset, "partition") and cfg.dataset.partition is not None:
-        partition_type = sanitize_filename_component(cfg.dataset.partition)
-    elif hasattr(cfg.dataset, "alpha") and cfg.dataset.alpha is not None:
-        partition_type = f"alpha{str(cfg.dataset.alpha).replace('.', '')}"
+    testloader = DataLoader(
+        test_ds,
+        shuffle=False,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory,
+        multiprocessing_context="spawn", 
+    )
+    return testloader
+
+
+fds = None  # Cache FederatedDataset
+def load_data(partition_id, num_partitions, cfg):
+    # Only initialize `FederatedDataset` once
+    global fds
+    if fds is None:
+        partitioner = DirichletPartitioner(num_partitions=num_partitions, 
+                                           partition_by="label", 
+                                           alpha=cfg.dataset.alpha)
+        fds = FederatedDataset(
+            dataset="ylecun/mnist",
+            partitioners={"train": partitioner},
+        )
+    
+    partition = fds.load_partition(partition_id, "train")
+    partition = partition.with_transform(apply_transforms)
+    # 20 % for on federated evaluation
+    partition_full = partition.train_test_split(test_size=0.2, seed=42)
+    # 60 % for the federated train and 20 % for the federated validation (both in fit)
+    partition_train_valid = partition_full["train"].train_test_split(
+        train_size=0.75, seed=42
+    )
+
+    def federated_collate(batch):
+        # batch is a list of length 1 when partition yields whole‐batch dicts,
+        # or length N if partition yields single samples; in both cases we
+        # just flatten it into one dict:
+        # if isinstance(batch, list) and isinstance(batch[0], dict):
+        #  batch = batch[0]  # drop the extra list‐of‐dict
+        # # now batch["image"] is a Python list of Tensors
+        # # images = torch.stack(batch["image"], dim=0)            # (B, C, H, W)
+        # # labels = torch.tensor(batch["label"], dtype=torch.long)  # (B,)
+        # return batch["image"], batch["label"]
+    
+        return batch
+
+    trainloader = DataLoader(
+        partition_train_valid["train"],
+        shuffle=True,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory,
+        collate_fn=federated_collate,
+        
+    )
+    valloader = DataLoader(
+        partition_train_valid["test"],
+        shuffle=False,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory,
+        collate_fn=federated_collate,
+    )
+    testloader = DataLoader(
+        partition_full["test"],
+        shuffle=False,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory,
+        collate_fn=federated_collate,
+    )
+    return trainloader, valloader, testloader
+
+# Stolen from strategy implementation!
+def weighted_loss_avg(results: list[tuple[int, float]]) -> float:
+    """Aggregate evaluation results obtained from multiple clients."""
+    num_total_evaluation_examples = sum(num_examples for (num_examples, _) in results)
+    weighted_losses = [num_examples * loss for num_examples, loss in results]
+    return sum(weighted_losses) / num_total_evaluation_examples
+
+
+def standard_aggregate(me: List[Tuple[int, Dict[str, Any]]]):
+    log(INFO, "[AGGREGATE]")
+    aggregate_metrics = {}
+    for key, _ in me[0][1].items():
+        # if "loss" in key:
+        #     avg = weighted_loss_avg([
+        #         (num_examples, metrics[key])
+        #         for num_examples, metrics in me
+        #     ])
+        # else:
+        # TODO we calculate loss and avg with the same function
+        avg = weighted_avg([
+            (num_examples, metrics[key])
+            for num_examples, metrics in me
+        ])
+        aggregate_metrics[key] = avg
+
+        # aggregate_metrics[f"{key}_dist"] = [metrics[key] for _, metrics in me]
+
+    for id, (_, metrics) in enumerate(me):
+        #TODO this random logs the resulting values
+        for key, value in metrics.items():
+            aggregate_metrics[f"{key}_{id}"] = value
+
+    return aggregate_metrics
+
+def flatten_dict(d: dict, parent_key: str = "", sep: str = ".") -> dict:
+    items: dict = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+def get_best_device():
+    if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        # return torch.device("mps")
+        return "mps"
+    elif torch.cuda.is_available():
+        # return torch.device("cuda")
+        return "cuda"
     else:
-        partition_type = "iid"
-
-    # Add any other relevant hyperparameters from cfg
-    extra_params = []
-    if hasattr(cfg.algorithm, "lr"):
-        extra_params.append(f"clientLR{cfg.algorithm.lr}")
-    if hasattr(cfg.algorithm, "client_fraction"):
-        extra_params.append(f"clientFrac{cfg.algorithm.client_fraction}")
-    if hasattr(cfg.dataset, "batch_size"):
-        extra_params.append(f"bs{cfg.dataset.batch_size}")
-
-    # Compose filename
-    param_str = "_".join([partition_type] + extra_params) if extra_params else partition_type
-    filename = f"TrainedModels/{model_name}_{dataset_name}_{algorithm_name}_{param_str}_rounds{num_rounds}_global.pt"
-
-    # Ensure the directory exists
-    os.makedirs("TrainedModels", exist_ok=True)
-
-    return filename
-
-def evaluate_on_mnist_test(model_cfg, model_weights_path, batch_size=64, verbose=True):
-    """
-    Loads the MNIST test set, evaluates the given model on it, and prints accuracy.
-
-    Args:
-        model_cfg: The model config (e.g., cfg.model from Hydra).
-        model_weights_path: Path to the saved model weights.
-        batch_size: Batch size for DataLoader.
-        verbose: If True, prints the accuracy.
-
-    Returns:
-        accuracy (float): Test accuracy in percent.
-    """
-    from src.model_factory import build_model
-
-    transform = transforms.Compose([
-        transforms.Grayscale(num_output_channels=3),
-        transforms.ToTensor()
-    ])
-    testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model(model_cfg).to(device)
-    model.load_state_dict(torch.load(model_weights_path, map_location=device))
-    model.eval()
-
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for images, labels in testloader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-    accuracy = 100 * correct / total
-    if verbose:
-        print(f"Global model accuracy on MNIST test set: {accuracy:.2f}%")
-    return accuracy
-
-
-def evaluate_on_cifar10_test(model_cfg, model_weights_path, batch_size=64, verbose=True):
-    """
-    Loads the CIFAR-10 test set, evaluates the given model on it, and prints accuracy.
-
-    Args:
-        model_cfg: The model config (e.g., cfg.model from Hydra).
-        model_weights_path: Path to the saved model weights.
-        batch_size: Batch size for DataLoader.
-        verbose: If True, prints the accuracy.
-
-    Returns:
-        accuracy (float): Test accuracy in percent.
-    """
-    from src.model_factory import build_model
-
-    transform = transforms.Compose([
-        transforms.ToTensor()
-    ])
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model(model_cfg).to(device)
-    model.load_state_dict(torch.load(model_weights_path, map_location=device))
-    model.eval()
-
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for images, labels in testloader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-    accuracy = 100 * correct / total
-    if verbose:
-        print(f"Global model accuracy on CIFAR-10 test set: {accuracy:.2f}%")
-    return accuracy
+        # return torch.device("cpu")
+        return "cpu"

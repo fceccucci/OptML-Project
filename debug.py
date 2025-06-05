@@ -2,7 +2,7 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from src.dataset_factory import build_dataloaders
+from src.dataset_factory import build_shared_dataset, build_client_loaders
 from src.server_app import server_fn 
 from src.client_app import Client, client_fn
 from flwr.simulation import run_simulation

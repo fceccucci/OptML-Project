@@ -4,26 +4,31 @@ dataset:
   name: mnist
   num_clients: 2
   alpha: 1000
+  share_fraction: 0
+  alpha_dist: 0
   root: /tmp/data
-  share_fraction: 0.10    # β = 10% of train goes into G
-  alpha_dist: 0.50        # α_dist = 50% of G each client sees
-  seed: 42
 
 dataloader:
   num_workers: 2
   pin_memory: False
   batch_size: 64
-  seed: 42
 
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 1
+  warmup_epochs: 1
   lr: 0.01
   mu: 0.01        # Only for fedprox
   eta: 0.001      # Only for fedadam
   momentum: 0.9   # Only for fedavgm
-  client_fraction: 1
+  client_fraction: 0.1
+  rounds: 2
+
+model: 
+  arch: smallcnn
+  num_classes: 10
+  lr: 0.01
 
 task:
   num_of_rounds: 2
@@ -35,4 +40,4 @@ backend_config:
 
 trainer:
   accelerator: auto
-  precision:   16-mixed
+  precision:   bf16-mixed

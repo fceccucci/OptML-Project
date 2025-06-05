@@ -1,0 +1,41 @@
+debug: False
+dataset:
+  _target_: src.dataset_factory.get_dataset
+  name: mnist
+  num_clients: 10
+  alpha: 1
+  root: /tmp/data
+
+dataloader:
+  num_workers: 2
+  pin_memory: True
+  batch_size: 64
+
+
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedavg
+  local_epochs: 1
+  lr: 0.01
+  mu: 0.01        # Only for fedprox
+  eta: 0.001      # Only for fedadam
+  momentum: 0.9   # Only for fedavgm
+  client_fraction: 0.1
+
+task:
+  num_of_rounds: 50
+
+backend_config:
+  init_args:
+    num_cpus: 10
+    num_gpus: 1
+
+  client_resources:
+    num_cpus: 2     # each client may use up to 8 CPU cores
+    num_gpus: 0.20  # each client may use 10% of a single GPU’s VRAM
+
+
+
+trainer:
+  accelerator: auto
+  precision:   16-mixed

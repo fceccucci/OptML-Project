@@ -1,0 +1,40 @@
+debug: False
+dataset:
+  _target_: src.dataset_factory.get_dataset
+  name: mnist
+  num_clients: 10
+  alpha: 1
+  root: /tmp/data
+
+dataloader:
+  num_workers: 2
+  pin_memory: False
+  batch_size: 64
+
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedyogi # fedavg, fedprox, fedadam, fednova
+  local_epochs: 5
+  lr: 0.01
+  mu: 0.7        # Only for fedprox, Heavy mu for stabilization when alpha is small, shows steh efect of mu
+  eta: 0.1   
+  eta_yogi: 0.025  # Only for fedyogi    
+  eta_warmup: 2  
+  beta1: 0.4
+  beta2: 0.99
+  tau:  1e-9    # Only for fedadam
+  momentum: 0.5   # Only for fedavgm
+  client_fraction: 1.0
+
+task:
+  num_of_rounds: 20
+
+backend_config:
+  client_resources:
+    num_cpus: 1    # each client may use up to 8 CPU cores
+    num_gpus: 0     # Leave it to zero if you have no cpus
+
+trainer:
+  accelerator: auto
+  precision:   16-mixed
+  gradient_clip_val: 1.0 

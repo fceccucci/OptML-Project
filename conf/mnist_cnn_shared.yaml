@@ -1,0 +1,44 @@
+ # conf/mnist_cnn_shared.yaml
+
+debug: False
+dataset:
+  _target_: src.dataset_factory.get_dataset
+  name: mnist
+  num_clients: 10
+  root: /tmp/data
+  alpha: 0.01         # Dirichlet α for non-IID split of D
+  share_fraction: 0.1    # β = 10% of train goes into G
+  alpha_dist: 0.50        # α_dist = 50% of G each client sees
+  seed: 42
+
+dataloader:
+  batch_size: 64
+  num_workers: 2
+  pin_memory: false
+  seed: 42
+
+algorithm:
+  _target_: src.algorithm_factory.get_fl_algo
+  name: fedavg
+  lr: 0.01
+  local_epochs: 1
+  warmup_epochs: 1     # Number of epochs to train on G_dataset
+  client_fraction: 1.0
+  rounds: 3
+  
+model:
+  arch: smallcnn                  
+  num_classes: 10
+  lr: 0.01
+  
+task:
+  num_of_rounds: 3
+
+backend_config:
+  client_resources:
+    num_cpus: 1     # each client may use up to 8 CPU cores
+    num_gpus: 0     # Leave it to zero if you have no cpus
+
+trainer:
+  accelerator: auto
+  precision: bf16-mixed

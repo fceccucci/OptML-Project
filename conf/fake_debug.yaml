@@ -1,0 +1,37 @@
+# conf/fake_debug.yaml
+
+dataset:
+  name: FakeData
+  num_clients: 4
+  partition:
+    strategy: iid
+  size: 400     # total samples (e.g. 100 per client)
+  image_size: [3, 28, 28]
+  num_classes: 10
+  batch_size: 16
+
+model:
+  _target_: src.model_factory.get_model
+  arch: cnn
+  num_classes: 10
+
+algorithm:
+  name: fedavg_shared
+  local_epochs: 1
+  lr: 0.01
+  client_fraction: 1.0
+  shared_steps: 1
+  shared_lr: 0.001
+
+task:
+  num_classes: 10
+  loss:
+    _target_: torch.nn.CrossEntropyLoss
+
+shared_data:
+  enabled: true
+  name: FakeData
+  size: 128
+  image_size: [3, 28, 28]
+  num_classes: 10
+  batch_size: 32

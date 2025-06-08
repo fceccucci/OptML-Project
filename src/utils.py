@@ -19,7 +19,7 @@ from torchvision import transforms
 from logging import INFO
 from flwr.common.logger import log
 import torchvision
-
+from collections.abc import MutableMapping
 
 
 logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
@@ -202,15 +202,16 @@ def standard_aggregate(me: List[Tuple[int, Dict[str, Any]]]):
 
     return aggregate_metrics
 
-def flatten_dict(d: dict, parent_key: str = "", sep: str = ".") -> dict:
-    items: dict = {}
-    for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.update(flatten_dict(v, new_key, sep=sep))
+
+def flatten_dict(dictionary, parent_key='', separator='_'):
+    items = []
+    for key, value in dictionary.items():
+        new_key = parent_key + separator + key if parent_key else key
+        if isinstance(value, MutableMapping):
+            items.extend(flatten_dict(value, new_key, separator=separator).items())
         else:
-            items[new_key] = v
-    return items
+            items.append((new_key, value))
+    return dict(items)
 
 def get_best_device():
     if torch.backends.mps.is_available() and torch.backends.mps.is_built():

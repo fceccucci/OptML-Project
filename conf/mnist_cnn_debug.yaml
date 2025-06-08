@@ -4,8 +4,8 @@ dataset:
   name: mnist
   num_clients: 2
   alpha: 1000
-  share_fraction: 0
-  alpha_dist: 0
+  share_fraction: 0.1
+  alpha_dist: 0.5
   root: /tmp/data
 
 dataloader:
@@ -17,7 +17,7 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 1
-  warmup_epochs: 1
+  warmup_epochs: 50
   lr: 0.01
   mu: 0.01        # Only for fedprox
   eta: 0.001      # Only for fedadam

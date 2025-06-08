@@ -9,14 +9,14 @@ from src.dataset_factory import build_shared_dataset, build_client_loaders
 from src.utils import set_parameters, get_parameters, set_seed, get_best_device
 
 class FlowerClient(NumPyClient):
-    def __init__(self, train_loader: DataLoader, val_loader: DataLoader, test_loader: DataLoader, cfg):
+    def __init__(self, train_loader: DataLoader, test_loader: DataLoader, cfg):
         self.model = SmallCNN(
             num_classes=cfg.model.num_classes,
             in_channels=1,
             lr=cfg.model.lr
         )
         self.train_loader = train_loader
-        self.val_loader = val_loader
+        # self.val_loader = val_loader # We removed the val loader because we only do like one to five epochs of training here
         self.test_loader = test_loader
         self.cfg = cfg
 
@@ -64,12 +64,12 @@ def client_fn(context: Context) -> NumPyClient:
     set_seed(42)
 
     # 1) Rebuild G
-    G_dataset = build_shared_dataset(cfg.dataset)
+    G_dataset = build_shared_dataset(cfg.dataset, cfg.debug)
 
     # 2) Build this client’s loaders
-    train_loader, val_loader, test_loader = build_client_loaders(
+    train_loader, test_loader = build_client_loaders(
         cfg.dataset, cfg.dataloader, cfg.debug, cid, G_dataset
     )
-    return FlowerClient(train_loader, val_loader, test_loader, cfg).to_client()
+    return FlowerClient(train_loader, test_loader, cfg).to_client()
 
 app = ClientApp(client_fn=client_fn)

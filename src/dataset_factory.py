@@ -8,7 +8,6 @@ DataLoaders so Flower can simulate “virtual clients” on a single machine.
 
 import os, random, threading
 from typing import Tuple
-import torch
 from torch.utils.data import DataLoader, Subset, Dataset, random_split, ConcatDataset
 import torchvision
 from torchvision import transforms
@@ -19,23 +18,31 @@ try:
 except ImportError as e:
     raise ImportError("FedLab is required for Dirichlet partitioning. Install it with `pip install fedlab`.") from e
 
-# Single‐slot cache so we only download MNIST once
-_raw_dataset_cache = None
+# single‐slot cache for the raw datasets
+_raw_dataset_cache: Tuple = None
 _cache_lock = threading.Lock()
 
-def build_shared_dataset(cfg) -> Dataset:
+def build_shared_dataset(cfg, debug) -> Dataset:
     """
     Carve out a single, class‐balanced G from full MNIST train.
     |G| = share_fraction * |full_train|.
     """
-    root = os.path.expanduser(cfg.root)
-    tfm = transforms.Compose([transforms.ToTensor()])
-    full_train = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
+    global _raw_dataset_cache
+
+    # 1) Load (or reuse) the raw datasets
+    with _cache_lock:
+        if _raw_dataset_cache is None:
+            full_train, full_test = load_dataset(cfg, debug)
+            _raw_dataset_cache = (full_train, full_test)
+            log(INFO, "Loaded & cached raw datasets")
+        else:
+            full_train, _ = _raw_dataset_cache
+            log(INFO, "Reusing cached raw datasets")
 
     total = len(full_train)                       
     beta = cfg.share_fraction             
     G_size = int(beta * total)
-    labels = full_train.targets.tolist()           
+    labels = full_train.dataset.targets.tolist()           
 
     num_classes = len(set(labels))                  
     per_class = G_size // num_classes               
@@ -51,13 +58,27 @@ def build_shared_dataset(cfg) -> Dataset:
     G_dataset = Subset(full_train, G_indices)
     return G_dataset
 
+def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
+    root = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
+
+    tfm = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    train_ds = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
+    test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
+    
+    if debug:
+        train_ds = Subset(train_ds, range(min(len(train_ds), 100)))
+        test_ds  = Subset(test_ds,  range(min(len(test_ds),  50)))
+    return train_ds, test_ds
+
 def build_client_loaders(
     cfg, 
     dataloader_cfg, 
     debug: bool, 
     cid: int, 
     G_dataset: Dataset
-) -> Tuple[DataLoader, DataLoader, DataLoader]:
+) -> Tuple[DataLoader, DataLoader]:
     """
     For client `cid`:
     1) Reconstruct full_train & full_test.
@@ -68,18 +89,23 @@ def build_client_loaders(
     6) Build a “private” validation split: 10% of that client’s private slice.
     7) Dirichlet‐partition full_test to get test indices for this client → test loader.
     """
-    root = os.path.expanduser(cfg.root)
-    tfm = transforms.Compose([transforms.ToTensor()])
+    global _raw_dataset_cache
 
-    # Full MNIST
-    full_train = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
-    full_test  = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
+    # 1) Load (or reuse) the raw datasets
+    with _cache_lock:
+        if _raw_dataset_cache is None:
+            full_train, full_test = load_dataset(cfg, debug)
+            _raw_dataset_cache = (full_train, full_test)
+            log(INFO, "Loaded & cached raw datasets")
+        else:
+            full_train, full_test = _raw_dataset_cache
+            log(INFO, "Reusing cached raw datasets")
 
     # Retrieve G_indices exactly as done in build_shared_dataset
     total = len(full_train)                       
     beta = cfg.share_fraction
     G_size = int(beta * total)
-    labels = full_train.targets.tolist()
+    labels = full_train.dataset.targets.tolist()           
     num_classes = len(set(labels))
     per_class = G_size // num_classes
 
@@ -118,9 +144,12 @@ def build_client_loaders(
 
     # Concat private + shared
     train_combined = ConcatDataset([private_ds, G_for_client])
+
     if debug:
         # If debug, we only keep up to 200 samples total into train_combined
-        train_combined = Subset(train_combined, range(min(len(train_combined), 200)))
+        num_debug_samples = 10  # or 15
+        selected_indices = range(min(num_debug_samples, len(train_combined)))
+        train_combined = Subset(train_combined, selected_indices)
 
     train_loader = DataLoader(
         train_combined,
@@ -131,28 +160,34 @@ def build_client_loaders(
         drop_last=False,
     )
 
+    # TODO this set has more training data then the other branch!
     # 6) Build a small “validation” split out of **private_ds** (90% train / 10% val)
-    val_size = int(0.1 * len(private_ds))
-    if val_size > 0:
-        train_sub, val_sub = random_split(private_ds, [len(private_ds) - val_size, val_size])
-    else:
-        train_sub, val_sub = private_ds, private_ds
+    # val_size = int(0.1 * len(private_ds))
+    # if val_size > 0:
+    #     train_sub, val_sub = random_split(private_ds, [len(private_ds) - val_size, val_size])
+    # else:
+    #     train_sub, val_sub = private_ds, private_ds
 
-    val_loader = DataLoader(
-        val_sub,
-        batch_size=dataloader_cfg.batch_size,
-        shuffle=False,
-        num_workers=dataloader_cfg.num_workers,
-        pin_memory=dataloader_cfg.pin_memory,
-    )
+    # val_loader = DataLoader(
+    #     val_sub,
+    #     batch_size=dataloader_cfg.batch_size,
+    #     shuffle=False,
+    #     num_workers=dataloader_cfg.num_workers,
+    #     pin_memory=dataloader_cfg.pin_memory,
+    # )
+    
 
     # 7) Dirichlet‐partition full_test → client_test_idx
-    test_labels = full_test.targets.tolist()
+    test_labels = full_test.dataset.targets.tolist()
     test_idcs_all = dirichlet_partition(test_labels, cfg.num_clients, num_classes, cfg.alpha)
     client_test_idx = test_idcs_all[cid]
-    test_ds = Subset(full_test, client_test_idx)
+
+    test_ds = Subset(full_test.dataset, client_test_idx)
+
     if debug:
-        test_ds = Subset(test_ds, range(min(len(test_ds), 50)))
+        num_debug_samples = 10
+        selected_indices = range(min(num_debug_samples, len(test_ds)))
+        test_ds = Subset(test_ds, selected_indices)
 
     test_loader = DataLoader(
         test_ds,
@@ -162,5 +197,5 @@ def build_client_loaders(
         pin_memory=dataloader_cfg.pin_memory,
     )
 
-    log(INFO, f"[Client {cid}] private={len(private_idx)} + shared={per_client_G} → train={len(train_combined)} | val={len(val_sub)} | test={len(test_ds)}")
-    return train_loader, val_loader, test_loader
+    log(INFO, f"[Client {cid}] private={len(private_idx)} + shared={per_client_G} → train={len(train_combined)} | test={len(test_ds)}")
+    return train_loader, test_loader

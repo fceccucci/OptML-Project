@@ -1,16 +1,21 @@
 defaults:
   - _self_
-  - mnist_cnn_server
-  # - mnist_cnn_debug
+  # - mnist_cnn_server
+  - mnist_cnn_debug
 
 hydra:
   sweeper:
     params:
     # fedyogi, fedavg
-      algorithm.name: fedprox, fedyogi
-      algorithm.client_fraction: 0.1, 0.5, 1
-      algorithm.local_epochs: 1, 5
-      dataset.alpha: 1000, 1, 0.1, 0.001
+      algorithm.name: fedavg
+      algorithm.client_fraction: 0.1, 0.5 #, 1
+      algorithm.local_epochs: 5 # 1
+      dataset.alpha:  0.1, 0.001 #1000, 1,
+
+      #shared:
+      dataset.share_fraction: 0.1, 0.2
+      algorithm.warmup_epochs: 10, 50
+
   sweep:
     dir: multirun_logs/${hydra.job.override_dirname}
     subdir: ${hydra.job.num}

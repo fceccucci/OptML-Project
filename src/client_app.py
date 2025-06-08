@@ -11,7 +11,6 @@ from src.utils import set_parameters, get_parameters, set_seed, get_best_device
 class FlowerClient(NumPyClient):
     def __init__(self, train_loader: DataLoader, test_loader: DataLoader, cfg):
         self.model = SmallCNN(
-            num_classes=cfg.model.num_classes,
             in_channels=1,
             lr=cfg.algorithm.lr
         )

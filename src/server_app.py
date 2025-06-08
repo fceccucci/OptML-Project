@@ -24,7 +24,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     global_model = SmallCNN(lr=cfg.algorithm.lr).to(device)
     test_loader = load_data_test_data_loader(cfg)
 
-    if cfg.dataset.share_fraction and cfg.dataset.share_fraction > 0:
+    if cfg.dataset.share_fraction > 0 and cfg.algorithm.warmup_epochs > 0:
         G_dataset = build_shared_dataset(cfg.dataset, cfg.debug)
       
         # 2) Warm‐up LightningModel on G for warmup_epochs
@@ -35,7 +35,7 @@ def server_fn(context: Context) -> ServerAppComponents:
             num_workers=cfg.dataloader.num_workers,
             pin_memory=cfg.dataloader.pin_memory
         )
-    
+        
         trainer = pl.Trainer(
             max_epochs=cfg.algorithm.warmup_epochs,
             accelerator=device,

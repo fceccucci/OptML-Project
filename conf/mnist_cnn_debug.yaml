@@ -17,7 +17,7 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedavg
   local_epochs: 1
-  warmup_epochs: 1
+  warmup_epochs: 0
   lr: 0.01
   mu: 0.01        # Only for fedprox
   eta: 0.001      # Only for fedadam

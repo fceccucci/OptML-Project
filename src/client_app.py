@@ -13,7 +13,7 @@ class FlowerClient(NumPyClient):
         self.model = SmallCNN(
             num_classes=cfg.model.num_classes,
             in_channels=1,
-            lr=cfg.model.lr
+            lr=cfg.algorithm.lr
         )
         self.train_loader = train_loader
         # self.val_loader = val_loader # We removed the val loader because we only do like one to five epochs of training here

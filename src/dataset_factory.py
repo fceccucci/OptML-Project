@@ -42,7 +42,7 @@ def build_shared_dataset(cfg, debug) -> Dataset:
     total = len(full_train)                       
     beta = cfg.share_fraction             
     G_size = int(beta * total)
-    labels = full_train.dataset.targets.tolist()           
+    labels = full_train.targets.tolist()           
 
     num_classes = len(set(labels))                  
     per_class = G_size // num_classes               
@@ -67,9 +67,6 @@ def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
     train_ds = torchvision.datasets.MNIST(root, train=True, download=True, transform=tfm)
     test_ds = torchvision.datasets.MNIST(root, train=False, download=True, transform=tfm)
     
-    if debug:
-        train_ds = Subset(train_ds, range(min(len(train_ds), 100)))
-        test_ds  = Subset(test_ds,  range(min(len(test_ds),  50)))
     return train_ds, test_ds
 
 def build_client_loaders(
@@ -105,7 +102,7 @@ def build_client_loaders(
     total = len(full_train)                       
     beta = cfg.share_fraction
     G_size = int(beta * total)
-    labels = full_train.dataset.targets.tolist()           
+    labels = full_train.targets.tolist()           
     num_classes = len(set(labels))
     per_class = G_size // num_classes
 
@@ -178,11 +175,11 @@ def build_client_loaders(
     
 
     # 7) Dirichlet‐partition full_test → client_test_idx
-    test_labels = full_test.dataset.targets.tolist()
+    test_labels = full_test.targets.tolist()
     test_idcs_all = dirichlet_partition(test_labels, cfg.num_clients, num_classes, cfg.alpha)
     client_test_idx = test_idcs_all[cid]
 
-    test_ds = Subset(full_test.dataset, client_test_idx)
+    test_ds = Subset(full_test, client_test_idx)
 
     if debug:
         num_debug_samples = 10

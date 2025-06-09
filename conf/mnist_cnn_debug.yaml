@@ -4,7 +4,7 @@ dataset:
   name: mnist
   num_clients: 2
   alpha: 1000
-  share_fraction: 0.1
+  share_fraction: 0
   alpha_dist: 0.5
   root: /tmp/data
 

@@ -1,110 +1,130 @@
-# OptML-Project
+# Federated Learning with PyTorch Lightning and Flower
 
-Federated learning experiments on MNIST and CIFAR-10 using PyTorch and Flower.
-
-## Project Structure
-
-```
-.
-├── algorithm_factory.py
-├── dataset_factory.py
-├── main.py
-├── model_factory.py
-├── TrainedModelEval.ipynb
-├── conf/
-│   ├── mnist_cnn.yaml
-│   ├── mnist_cnn_iid.yaml
-│   ├── cifar_resnet18.yaml
-│   ├── cifar_resnet18_iid.yaml
-│   └── ...
-├── TrainedModels/
-│   └── ...
-├── data/
-│   ├── MNIST/
-│   └── cifar-10-batches-py/
-└── outputs/
-```
-
-## Setup
-
-1. **Install dependencies**  
-   Recommended: use a virtual environment (e.g., conda or venv).
-
-   ```sh
-   pip install torch torchvision hydra-core flwr fedlab matplotlib numpy
-   ```
-
-   #### Library Versions
-
-   - torch: 2.5.1  
-   - torchvision: 0.20.1  
-   - hydra-core: 1.3.2  
-   - flwr: 1.18.0  
-   - fedlab: 1.3.0  
-   - matplotlib: 3.10.3  
-   - numpy: 2.0.1  
-
-2. **(Optional) Install Jupyter for evaluation notebooks**
-
-   ```sh
-   pip install notebook
-   ```
-
-## Training
-
-All training is launched via `main.py` using Hydra configs from the `conf` folder.
-
-### Example: Train CNN on MNIST (IID)
-
-```sh
-python main.py --config-name=mnist_cnn_iid.yaml
-```
-
-### Example: Train CNN on MNIST (Dirichlet non-IID)
-
-```sh
-python main.py --config-name=mnist_cnn.yaml
-```
-
-### Example: Train ResNet18 on CIFAR-10 (IID)
-
-```sh
-python main.py --config-name=cifar_resnet18_iid.yaml
-```
-
-### Example: Train ResNet18 on CIFAR-10 (Dirichlet non-IID)
-
-```sh
-python main.py --config-name=cifar_resnet18.yaml
-```
-
-- Trained global models are saved in the `TrainedModels/` directory.
-
-## Evaluation
-
-Use the provided Jupyter notebook [`TrainedModelEval.ipynb`](TrainedModelEval.ipynb) to evaluate and visualize the trained models.
-
-1. Open the notebook in VS Code or Jupyter.
-2. Adjust the `model_path` in the relevant cells to point to your trained model file in `TrainedModels/`.
-3. Run the notebook cells to compute accuracy and visualize predictions.
-
-## Configuration
-
-All experiment settings (dataset, model, algorithm, etc.) are controlled via YAML files in the `conf/` directory.  
-You can create new configs by copying and modifying existing ones.
-
-## Notes
-
-- The code supports both IID and Dirichlet non-IID partitioning for federated learning.
-- For MNIST, images are converted to 3 channels to match the CNN input.
-- For CIFAR-10, standard 3-channel images are used.
-- The number of clients, local epochs, and other hyperparameters can be set in the config files.
-
-## Troubleshooting
-
-- If you see low accuracy after training, ensure that the model and data channels match and that the global model is properly updated after federated training.
-- For more details, see comments in [`main.py`](main.py), [`algorithm_factory.py`](algorithm_factory.py), and [`model_factory.py`](model_factory.py).
+This project demonstrates how to simulate Federated Learning (FL) using the Flower framework and PyTorch Lightning. It supports multiple FL strategies (FedAvg, FedYogi, FedAdam, FedProx, FedAvgM) with non-IID data distributions using configurable YAML files for dataset, model, and algorithm management.
 
 ---
 
-**Author:**  
+## What is Federated Learning?
+
+Federated Learning is a decentralized machine learning approach where training happens across multiple devices or servers holding local data samples, without exchanging them. This enables privacy preservation and reduces the need for centralized data aggregation. 
+
+Each client trains the model on its own data and sends only the model updates to a central server for aggregation. This project simulates this process using `Flower` and `PyTorch Lightning`.
+
+---
+
+## Project Structure
+
+```text
+├── src/
+│   ├── client_app.py          # Federated client simulation
+│   ├── server_app.py          # Federated server entry point
+│   ├── model.py               # CNN and model factory
+│   ├── dataset_factory.py     # Dataset loading and partitioning
+│   ├── straregy_factory.py    # FL strategy creation
+│   ├── utils.py               # Utility functions
+│   ├── history.py             # Tracking training/evaluation
+│   ├── debug.py               # Debugging tools
+├── conf/
+│   ├── *.yaml                 # Hydra configs for models, algorithms, datasets
+├── pyproject.toml             # Dependency and config specification
+├── setup.py                   # Optional setup script
+````
+
+---
+
+## Dependencies
+
+All dependencies are listed in `pyproject.toml`. Install them using:
+
+```bash
+pip install .
+```
+
+Or manually using:
+
+```bash
+pip install torch==2.6.0 torchvision==0.21.0 pytorch-lightning==2.4.0 \
+hydra-core==1.3.2 omegaconf>=2.3.0 flwr==1.18.0 fedlab==1.3.0 \
+matplotlib==3.10.3 numpy==2.0.1 flwr[simulation]>=1.18.0 \
+flwr-datasets[vision]>=0.5.0 wandb tensorboard>=2.17.0,<3.0.0 \
+hydra-joblib-launcher>=1.2.0
+```
+
+Python ≥3.11 recommended.
+
+---
+
+## How to Run
+
+### Run a full FL simulation
+
+Use Flower’s entrypoint:
+
+```bash
+python src/server_app.py
+```
+
+This launches the server and all clients using the `mnist_cnn_server.yaml` config by default.
+
+### Run a client independently (for debugging or inspection)
+
+```bash
+python src/client_app.py
+```
+
+You can specify custom configuration by modifying the YAMLs in the `conf/` folder.
+
+---
+
+## Available Experiments
+
+### Configurable with Hydra:
+
+* `mnist_cnn_debug.yaml` – Debug with 2 clients, few rounds
+* `mnist_cnn_small_local.yaml` – Small MNIST experiment
+* `mnist_cnn_server.yaml` – Full MNIST federated experiment
+* `mnist_sweep.yaml` – Sweeps across different FL algorithms and hyperparameters
+* `fake_debug.yaml` – Simulates data using `torchvision.datasets.FakeData`
+
+---
+
+## Supported Algorithms
+
+* `fedavg` – Federated Averaging
+* `fedyogi` – Adaptive optimization
+* `fedadam` – Adam-based FedOpt
+* `fedprox` – Robust optimization with proximal terms
+* `fedavgm` – FedAvg with momentum
+
+Customize via YAML (`algorithm.name`).
+
+---
+
+## Model & Logging
+
+Models and training logs are saved via PyTorch Lightning loggers (e.g., TensorBoard, W\&B). You can enable W\&B in `pyproject.toml`.
+
+To log runs locally:
+
+```bash
+tensorboard --logdir=lightning_logs/
+```
+
+---
+
+## Notes
+
+* GPU usage is configured via `backend_config.client_resources.num_gpus`.
+* Mixed-precision is enabled via `trainer.precision` (`bf16-mixed`, `16-mixed`).
+* Shared data (e.g., for FedAvg+Shared) is handled with `shared_data` config block.
+
+---
+
+## Troubleshooting
+
+* Ensure CUDA is available if using GPU: `torch.cuda.is_available()`
+* Use `debug: True` in YAML to enable verbose logging
+* For slow performance, reduce `num_clients` or use `FakeData`
+
+---
+

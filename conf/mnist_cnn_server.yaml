@@ -4,8 +4,8 @@ dataset:
   name: mnist
   num_clients: 10
   alpha: 1
-  share_fraction: 0.1
-  alpha_dist: 0.5
+  share_fraction: 0.0
+  alpha_dist: 0.0
   root: /tmp/data
 
 dataloader:
@@ -16,14 +16,19 @@ dataloader:
 
 algorithm:
   _target_: src.algorithm_factory.get_fl_algo
-  name: fedavg
+  name: fedyogi
   local_epochs: 1
   warmup_epochs: 0
   lr: 0.01
-  mu: 0.01        # Only for fedprox
-  eta: 0.001      # Only for fedadam
-  momentum: 0.9   # Only for fedavgm
-  client_fraction: 0.1
+  mu: 0.7        # Only for fedprox, Heavy mu for stabilization when alpha is small, shows steh efect of mu
+  eta: 0.1   
+  eta_yogi: 0.025  # Only for fedyogi    
+  eta_warmup: 2  
+  beta1: 0.4
+  beta2: 0.99
+  tau:  1e-9    # Only for fedadam
+  momentum: 0.5   # Only for fedavgm
+  client_fraction: 1.0
 
 task:
   num_of_rounds: 50

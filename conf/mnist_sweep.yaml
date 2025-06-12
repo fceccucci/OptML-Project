@@ -7,14 +7,14 @@ hydra:
   sweeper:
     params:
     # fedyogi, fedavg
-      algorithm.name: fedyogi, fedavgm
-      algorithm.client_fraction: 0.1, 0.5 #, 1
-      algorithm.local_epochs: 5 # 1,
-      dataset.alpha:  0.001 #1000, 1, 0.1
+      algorithm.name: fedyogi
+      algorithm.client_fraction: 0.1, 0.5 , 1
+      algorithm.local_epochs: 1, 5 # 
+      dataset.alpha:  1000, 1, 0.1, 0.001 # 
 
-      #shared:
-      dataset.share_fraction: 0.1, 0.05
-      algorithm.warmup_epochs: 0, 1, 10
+      # #shared:
+      # dataset.share_fraction: 0.1, 0.05
+      # algorithm.warmup_epochs: 0, 1, 10
 
   sweep:
     dir: multirun_logs/${hydra.job.override_dirname}

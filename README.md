@@ -54,27 +54,19 @@ Python ≥3.11 recommended.
 
 ---
 
-## How to Run
+## Training
 
-### Run a full FL simulation
+All training is launched via `main.py` using Hydra configs from the `conf/` folder.
 
-Use Flower’s entrypoint:
+### Single runs:
 
-```bash
-python src/server_app.py
+```sh
+python main.py --config-name=YOUR_CONFIG_NAME
 ```
-
-This launches the server and all clients using the `mnist_cnn_server.yaml` config by default.
-
-### Run a client independently (for debugging or inspection)
-
-```bash
-python src/client_app.py
+### Multi-run sweeps:
+```sh
+python main.py -m --config-name=mnist_sweep
 ```
-
-You can specify custom configuration by modifying the YAMLs in the `conf/` folder.
-
----
 
 ## Available Experiments
 
@@ -84,7 +76,6 @@ You can specify custom configuration by modifying the YAMLs in the `conf/` folde
 * `mnist_cnn_small_local.yaml` – Small MNIST experiment
 * `mnist_cnn_server.yaml` – Full MNIST federated experiment
 * `mnist_sweep.yaml` – Sweeps across different FL algorithms and hyperparameters
-* `fake_debug.yaml` – Simulates data using `torchvision.datasets.FakeData`
 
 ---
 
@@ -97,18 +88,6 @@ You can specify custom configuration by modifying the YAMLs in the `conf/` folde
 * `fedavgm` – FedAvg with momentum
 
 Customize via YAML (`algorithm.name`).
-
----
-
-## Model & Logging
-
-Models and training logs are saved via PyTorch Lightning loggers (e.g., TensorBoard, W\&B). You can enable W\&B in `pyproject.toml`.
-
-To log runs locally:
-
-```bash
-tensorboard --logdir=lightning_logs/
-```
 
 ---
 

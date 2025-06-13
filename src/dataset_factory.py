@@ -1,6 +1,6 @@
 """
 dataset_factory.py
-~~~~~~~~~~~~~~~~~~
+
 Utilities to load a vision dataset once, partition it into
 client-specific subsets (IID or Dirichlet non-IID) and return a list of
 DataLoaders so Flower can simulate “virtual clients” on a single machine.
@@ -24,8 +24,15 @@ _cache_lock = threading.Lock()
 
 def build_shared_dataset(cfg, debug) -> Dataset:
     """
-    Carve out a single, class‐balanced G from full MNIST train.
+    Carve out a single, class‐balanced shared dataset G from the full MNIST train set.
     |G| = share_fraction * |full_train|.
+
+    Args:
+        cfg: Hydra config object with dataset parameters.
+        debug (bool): If True, enables debug mode.
+
+    Returns:
+        Dataset: A torch.utils.data.Subset containing the shared data.
     """
     global _raw_dataset_cache
 
@@ -59,6 +66,16 @@ def build_shared_dataset(cfg, debug) -> Dataset:
     return G_dataset
 
 def load_dataset(cfg, debug) -> Tuple[Dataset, Dataset, Dataset]:
+    """
+    Load the MNIST dataset from disk, downloading if necessary.
+
+    Args:
+        cfg: Hydra config object with dataset parameters.
+        debug (bool): If True, enables debug mode.
+
+    Returns:
+        Tuple[Dataset, Dataset]: (train_dataset, test_dataset)
+    """
     root = os.path.expanduser(getattr(cfg, "root", "/tmp/data"))
 
     tfm = transforms.Compose([
@@ -77,14 +94,25 @@ def build_client_loaders(
     G_dataset: Dataset
 ) -> Tuple[DataLoader, DataLoader]:
     """
+    Build DataLoaders for a single client, including private and shared data.
+
     For client `cid`:
-    1) Reconstruct full_train & full_test.
-    2) Exclude G_indices from full_train → D_indices.
-    3) Dirichlet‐partition D_indices into K non‐IID subsets.
-    4) For this client, take α_dist * |G| random from G_dataset.
-    5) Concat(private_ds, G_slice) → train DataLoader.
-    6) Build a “private” validation split: 10% of that client’s private slice.
-    7) Dirichlet‐partition full_test to get test indices for this client → test loader.
+      1) Reconstruct full_train & full_test.
+      2) Exclude G_indices from full_train → D_indices.
+      3) Dirichlet‐partition D_indices into K non‐IID subsets.
+      4) For this client, take alpha_dist * |G| random from G_dataset.
+      5) Concat(private_ds, G_slice) → train DataLoader.
+      6) Dirichlet‐partition full_test to get test indices for this client → test loader.
+
+    Args:
+        cfg: Hydra config object with dataset parameters.
+        dataloader_cfg: Hydra config object with DataLoader parameters.
+        debug (bool): If True, enables debug mode.
+        cid (int): Client ID.
+        G_dataset (Dataset): Shared dataset G.
+
+    Returns:
+        Tuple[DataLoader, DataLoader]: (train_loader, test_loader)
     """
     global _raw_dataset_cache
 
@@ -156,22 +184,6 @@ def build_client_loaders(
         pin_memory=dataloader_cfg.pin_memory,
         drop_last=False,
     )
-
-    # TODO this set has more training data then the other branch!
-    # 6) Build a small “validation” split out of **private_ds** (90% train / 10% val)
-    # val_size = int(0.1 * len(private_ds))
-    # if val_size > 0:
-    #     train_sub, val_sub = random_split(private_ds, [len(private_ds) - val_size, val_size])
-    # else:
-    #     train_sub, val_sub = private_ds, private_ds
-
-    # val_loader = DataLoader(
-    #     val_sub,
-    #     batch_size=dataloader_cfg.batch_size,
-    #     shuffle=False,
-    #     num_workers=dataloader_cfg.num_workers,
-    #     pin_memory=dataloader_cfg.pin_memory,
-    # )
     
 
     # 7) Dirichlet‐partition full_test → client_test_idx

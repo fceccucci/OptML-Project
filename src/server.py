@@ -11,8 +11,27 @@ from flwr.common.logger import log
 from src.history import WAndBHistory
 
 class CustomServer(Server):
-     def fit(self, num_rounds: int, timeout: Optional[float]) -> tuple[History, float]:
-        """Run federated averaging for a number of rounds."""
+    """
+    A custom Flower Server that logs training and evaluation metrics to Weights & Biases (wandb).
+
+    This server overrides the default fit loop to:
+      - Log initial evaluation metrics.
+      - Log metrics after each federated round (both centralized and distributed).
+      - Track elapsed training time.
+      - Use a custom History object (WAndBHistory) for wandb integration.
+    """
+
+    def fit(self, num_rounds: int, timeout: Optional[float]) -> tuple[History, float]:
+        """
+        Run federated averaging for a number of rounds, logging metrics to wandb.
+
+        Args:
+            num_rounds (int): Number of federated rounds to run.
+            timeout (Optional[float]): Timeout for each round.
+
+        Returns:
+            Tuple[History, float]: The training history and total elapsed time.
+        """
         history = WAndBHistory()
 
         # Initialize parameters

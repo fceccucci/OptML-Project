@@ -1,4 +1,9 @@
-"""pytorchlightning_example: A Flower / PyTorch Lightning app."""
+"""pytorchlightning_example: A Flower / PyTorch Lightning app.
+
+This module provides utility functions for federated learning experiments,
+including parameter handling, aggregation, reproducibility, data loading,
+and device selection.
+"""
 
 import logging
 from collections import OrderedDict
@@ -24,59 +29,52 @@ from collections.abc import MutableMapping
 
 logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
 
-
-# class LitAutoEncoder(pl.LightningModule):
-#     def __init__(self) -> None:
-#         super().__init__()
-#         self.encoder = nn.Sequential(
-#             nn.Linear(28 * 28, 64),
-#             nn.ReLU(),
-#             nn.Linear(64, 3),
-#         )
-#         self.decoder = nn.Sequential(
-#             nn.Linear(3, 64),
-#             nn.ReLU(),
-#             nn.Linear(64, 28 * 28),
-#         )
-
-#     def forward(self, x) -> Any:
-#         embedding = self.encoder(x)
-#         return embedding
-
-#     def configure_optimizers(self) -> Adam:
-#         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-#         return optimizer
-
-#     def training_step(self, train_batch, batch_idx) -> torch.Tensor:
-#         x = train_batch["image"]
-#         x = x.view(x.size(0), -1)
-#         z = self.encoder(x)
-#         x_hat = self.decoder(z)
-#         loss = F.mse_loss(x_hat, x)
-#         self.log("train_loss", loss)
-#         return loss
-
-#     def validation_step(self, batch, batch_idx) -> None:
-#         self._evaluate(batch, "val")
-
-#     def test_step(self, batch, batch_idx) -> None:
-#         self._evaluate(batch,# Stolen from strategy implementation!
 def weighted_avg(results: list[tuple[int, float]]) -> float:
-    """Aggregate evaluation results obtained from multiple clients."""
+    """
+    Aggregate evaluation results obtained from multiple clients using a weighted average.
+
+    Args:
+        results (list of (int, float)): Each tuple contains (num_examples, loss).
+
+    Returns:
+        float: Weighted average loss.
+    """
     num_total_evaluation_examples = sum(num_examples for (num_examples, _) in results)
     weighted_losses = [num_examples * loss for num_examples, loss in results]
     return sum(weighted_losses) / num_total_evaluation_examples
 
 def get_parameters(model):
+    """
+    Extract model parameters as a list of NumPy arrays.
+
+    Args:
+        model: PyTorch model.
+
+    Returns:
+        List of NumPy arrays representing model parameters.
+    """
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
 
 def set_parameters(model, parameters):
+    """
+    Set model parameters from a list of NumPy arrays.
+
+    Args:
+        model: PyTorch model.
+        parameters: List of NumPy arrays.
+    """
     params_dict = zip(model.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
     model.load_state_dict(state_dict, strict=True)
 
 def set_seed(seed=42):
+    """
+    Set random seed for reproducibility.
+
+    Args:
+        seed (int): The seed value.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -85,11 +83,28 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def apply_transforms(batch):
-    """Apply transforms to the partition from FederatedDataset."""
+    """
+    Apply transforms to the partition from FederatedDataset.
+
+    Args:
+        batch (dict): Batch containing images.
+
+    Returns:
+        dict: Batch with images converted to tensors.
+    """
     batch["image"] = [transforms.functional.to_tensor(img) for img in batch["image"]]
     return batch
 
 def load_data_test_data_loader(cfg):
+    """
+    Apply transforms to the partition from FederatedDataset.
+
+    Args:
+        batch (dict): Batch containing images.
+
+    Returns:
+        dict: Batch with images converted to tensors.
+    """
     root = os.path.expanduser(getattr(cfg, "root", cfg.dataset.root))
     tfm = transforms.Compose([transforms.ToTensor()])
 
@@ -108,6 +123,17 @@ def load_data_test_data_loader(cfg):
 
 fds = None  # Cache FederatedDataset
 def load_data(partition_id, num_partitions, cfg):
+    """
+    Load federated data partition for a given client.
+
+    Args:
+        partition_id (int): Partition/client ID.
+        num_partitions (int): Total number of partitions/clients.
+        cfg: Hydra config object.
+
+    Returns:
+        Tuple[DataLoader, DataLoader, DataLoader]: (train, val, test loaders)
+    """
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
@@ -129,16 +155,8 @@ def load_data(partition_id, num_partitions, cfg):
     )
 
     def federated_collate(batch):
-        # batch is a list of length 1 when partition yields whole‐batch dicts,
-        # or length N if partition yields single samples; in both cases we
-        # just flatten it into one dict:
-        # if isinstance(batch, list) and isinstance(batch[0], dict):
-        #  batch = batch[0]  # drop the extra list‐of‐dict
-        # # now batch["image"] is a Python list of Tensors
-        # # images = torch.stack(batch["image"], dim=0)            # (B, C, H, W)
-        # # labels = torch.tensor(batch["label"], dtype=torch.long)  # (B,)
-        # return batch["image"], batch["label"]
-    
+        """Collate function for federated batches (identity)."""
+
         return batch
 
     trainloader = DataLoader(
@@ -170,30 +188,38 @@ def load_data(partition_id, num_partitions, cfg):
 
 # Stolen from strategy implementation!
 def weighted_loss_avg(results: list[tuple[int, float]]) -> float:
-    """Aggregate evaluation results obtained from multiple clients."""
+    """
+    Aggregate evaluation results obtained from multiple clients using a weighted average.
+
+    Args:
+        results (list of (int, float)): Each tuple contains (num_examples, loss).
+
+    Returns:
+        float: Weighted average loss.
+    """
     num_total_evaluation_examples = sum(num_examples for (num_examples, _) in results)
     weighted_losses = [num_examples * loss for num_examples, loss in results]
     return sum(weighted_losses) / num_total_evaluation_examples
 
 
 def standard_aggregate(me: List[Tuple[int, Dict[str, Any]]]):
+    """
+    Aggregate evaluation results obtained from multiple clients using a weighted average.
+
+    Args:
+        results (list of (int, float)): Each tuple contains (num_examples, loss).
+
+    Returns:
+        float: Weighted average loss.
+    """
     log(INFO, "[AGGREGATE]")
     aggregate_metrics = {}
     for key, _ in me[0][1].items():
-        # if "loss" in key:
-        #     avg = weighted_loss_avg([
-        #         (num_examples, metrics[key])
-        #         for num_examples, metrics in me
-        #     ])
-        # else:
-        # TODO we calculate loss and avg with the same function
         avg = weighted_avg([
             (num_examples, metrics[key])
             for num_examples, metrics in me
         ])
         aggregate_metrics[key] = avg
-
-        # aggregate_metrics[f"{key}_dist"] = [metrics[key] for _, metrics in me]
 
     for id, (_, metrics) in enumerate(me):
         #TODO this random logs the resulting values
@@ -204,6 +230,17 @@ def standard_aggregate(me: List[Tuple[int, Dict[str, Any]]]):
 
 
 def flatten_dict(dictionary, parent_key='', separator='_'):
+    """
+    Flatten a nested dictionary.
+
+    Args:
+        dictionary (dict): The dictionary to flatten.
+        parent_key (str): Prefix for keys.
+        separator (str): Separator between keys.
+
+    Returns:
+        dict: Flattened dictionary.
+    """
     items = []
     for key, value in dictionary.items():
         new_key = parent_key + separator + key if parent_key else key
@@ -214,6 +251,12 @@ def flatten_dict(dictionary, parent_key='', separator='_'):
     return dict(items)
 
 def get_best_device():
+    """
+    Get the best available device for computation.
+
+    Returns:
+        str: "mps", "cuda", or "cpu"
+    """
     if torch.backends.mps.is_available() and torch.backends.mps.is_built():
         # return torch.device("mps")
         return "mps"

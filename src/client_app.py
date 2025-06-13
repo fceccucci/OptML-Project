@@ -1,4 +1,10 @@
-"""pytorchlightning_example: A Flower / PyTorch Lightning app."""
+"""pytorchlightning_example: A Flower / PyTorch Lightning app.
+
+This module defines the client-side logic for federated learning experiments
+using PyTorch Lightning and Flower. It includes the FlowerClient class, which
+handles local training and evaluation, and the client_fn used to instantiate
+clients for each federated participant.
+"""
 from omegaconf import OmegaConf
 import pytorch_lightning as pl
 from flwr.client import NumPyClient, ClientApp, Client
@@ -9,7 +15,19 @@ from src.dataset_factory import build_shared_dataset, build_client_loaders
 from src.utils import set_parameters, get_parameters, set_seed, get_best_device
 
 class FlowerClient(NumPyClient):
+    """A Flower NumPyClient for federated learning with PyTorch Lightning.
+
+    Handles local training and evaluation for a single federated client.
+    """
     def __init__(self, train_loader: DataLoader, test_loader: DataLoader, cfg):
+        """
+        Initialize the federated client.
+
+        Args:
+            train_loader (DataLoader): DataLoader for the client's training data.
+            test_loader (DataLoader): DataLoader for the client's test data.
+            cfg: Hydra configuration object.
+        """
         self.model = SmallCNN(
             in_channels=1,
             lr=cfg.algorithm.lr
@@ -20,13 +38,23 @@ class FlowerClient(NumPyClient):
         self.cfg = cfg
 
     def get_parameters(self, config):
+        """Get the current model parameters as NumPy ndarrays."""
         return get_parameters(self.model)
 
     def set_parameters(self, parameters, config=None):
+        """Set the model parameters from NumPy ndarrays."""
         set_parameters(self.model, parameters)
 
     def fit(self, parameters, config):
-        """Train locally (Lightning) on this client’s combined dataset."""
+        """Train locally (Lightning) on this client’s combined dataset.
+
+        Args:
+            parameters: Model parameters to start training from.
+            config: Additional configuration.
+
+        Returns:
+            Tuple: (updated parameters, number of training examples, training metrics)
+        """
         set_parameters(self.model, parameters)
         device = get_best_device()
         self.model.to(device)
@@ -44,7 +72,15 @@ class FlowerClient(NumPyClient):
         return get_parameters(self.model), len(self.train_loader.dataset), metrics
 
     def evaluate(self, parameters, config):
-        """Evaluate locally."""
+        """Evaluate the model locally on the test set.
+
+        Args:
+            parameters: Model parameters to evaluate.
+            config: Additional configuration.
+
+        Returns:
+            Tuple: (test loss, number of test examples, test metrics)
+        """
         set_parameters(self.model, parameters)
         device = get_best_device()
         self.model.to(device)
@@ -58,6 +94,15 @@ class FlowerClient(NumPyClient):
         return loss, len(self.test_loader.dataset), results[0]
 
 def client_fn(context: Context) -> NumPyClient:
+    """
+    Build and return a federated client for Flower.
+
+    Args:
+        context (Context): Flower context object containing the Hydra config.
+
+    Returns:
+        NumPyClient: The federated client instance.
+    """
     cfg = context.cfg
     cid = int(context.node_config["partition-id"])
     set_seed(42)

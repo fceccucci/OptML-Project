@@ -1,4 +1,10 @@
-"""pytorchlightning_example: A Flower / PyTorch Lightning app."""
+"""pytorchlightning_example: A Flower / PyTorch Lightning app.
+
+This module defines the server-side logic for federated learning experiments
+using PyTorch Lightning and Flower. It includes the server function that
+initializes the global model, handles optional warmup on shared data, 
+defines the global evaluation function, and constructs the Flower server app.
+"""
 import os, sys
 import torch
 import pytorch_lightning as pl
@@ -15,6 +21,20 @@ from src.dataset_factory import build_client_loaders, build_shared_dataset
 import wandb
 
 def server_fn(context: Context) -> ServerAppComponents:
+    """
+    Build and configure the federated learning server components.
+
+    This function initializes the global model, optionally performs warmup
+    training on shared data, defines the global evaluation function, 
+    instantiates the federated learning strategy, and returns the server 
+    components for Flower.
+
+    Args:
+        context (Context): Flower context object containing the Hydra config.
+
+    Returns:
+        ServerAppComponents: The server, configuration, and any additional components.
+    """
     cfg = context.cfg
     set_seed(42)
     device = get_best_device()
@@ -57,18 +77,24 @@ def server_fn(context: Context) -> ServerAppComponents:
 
     # 4) Define evaluate_global
     def evaluate_global(server_rounds, parameters, config):
-            set_parameters(global_model, parameters)
-            trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device(), enable_checkpointing=False,)
-            results = trainer.test(global_model, test_loader, verbose=False)
-            loss = results[0]["test_loss"]
-            # acc = results[0]["test_acc"]
-            # if acc > best_acc:
-            #     best_acc = acc
-            #     best_parameter = parameters
-            if server_rounds >= (cfg.task.num_of_rounds - 1):
-                torch.save(parameters, "best_model.pt")
-                # torch.save(best_parameter, "best_model.pt")
-            return loss, results[0]
+        """
+        Evaluate the global model on the test set.
+
+        Args:
+            server_rounds (int): The current federated round.
+            parameters: Model parameters to evaluate.
+            config: Additional configuration.
+
+        Returns:
+            Tuple[float, dict]: The test loss and a dictionary of metrics.
+        """
+        set_parameters(global_model, parameters)
+        trainer = pl.Trainer(enable_progress_bar=False, accelerator=get_best_device(), enable_checkpointing=False,)
+        results = trainer.test(global_model, test_loader, verbose=False)
+        loss = results[0]["test_loss"]
+        if server_rounds >= (cfg.task.num_of_rounds - 1):
+            torch.save(parameters, "best_model.pt")
+        return loss, results[0]
 
     # 5) Build Flower strategy
     strategy = get_fl_algo(cfg, initial_parameters, evaluate_global, standard_aggregate)

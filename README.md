@@ -89,7 +89,7 @@ python main.py -m --config-name=mnist_sweep
 
 ---
 
-## ⚙ Supported FL Algorithms
+## Supported FL Algorithms
 
 | Algorithm       | Description                               |
 | --------------- | ----------------------------------------- |

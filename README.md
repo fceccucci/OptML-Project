@@ -32,6 +32,7 @@ This project simulates that process using Flower's simulation engine and PyTorch
 │   ├── *.yaml                 # Hydra configs for models, datasets, algorithms
 ├── pyproject.toml             # Dependency and configuration specification
 ├── setup.py                   # (Optional) Package installation script
+├── main.py                    # Main script of the project
 ```
 
 ---
@@ -58,7 +59,7 @@ hydra-joblib-launcher>=1.2.0
 
 ---
 
-## 🏁 Running Experiments
+##  Running Experiments
 
 All training is launched via `main.py` using Hydra config files in the `conf/` directory.
 

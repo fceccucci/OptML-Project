@@ -4,6 +4,8 @@ dataset:
   name: mnist
   num_clients: 10
   alpha: 1 
+  share_fraction: 0.0
+  alpha_dist: 0.0
   root: /tmp/data
 
 dataloader:
@@ -15,6 +17,7 @@ algorithm:
   _target_: src.algorithm_factory.get_fl_algo
   name: fedyogi # fedavg, fedprox, fedadam, fednova
   local_epochs: 5
+  warmup_epochs: 0
   lr: 0.01
   mu: 0.7        # Only for fedprox, Heavy mu for stabilization when alpha is small, shows steh efect of mu
   eta: 0.1   

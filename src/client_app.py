@@ -1,5 +1,4 @@
-"""pytorchlightning_example: A Flower / PyTorch Lightning app.
-
+"""
 This module defines the client-side logic for federated learning experiments
 using PyTorch Lightning and Flower. It includes the FlowerClient class, which
 handles local training and evaluation, and the client_fn used to instantiate

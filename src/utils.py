@@ -1,5 +1,4 @@
-"""pytorchlightning_example: A Flower / PyTorch Lightning app.
-
+"""
 This module provides utility functions for federated learning experiments,
 including parameter handling, aggregation, reproducibility, data loading,
 and device selection.

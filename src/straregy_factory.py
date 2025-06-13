@@ -1,3 +1,14 @@
+"""
+This module provides a factory function to instantiate a federated learning strategy
+for Flower based on the experiment configuration.
+
+Supported strategies include:
+    - FedAvg
+    - FedProx
+    - FedAdam
+    - FedYogi
+    - FedAvgM
+"""
 from flwr.server.strategy import FedAvg, FedProx, FedAdam, FedYogi, FedAvgM
 
 def get_fl_algo(cfg, global_model_init, evaluate_global, standard_aggregate):

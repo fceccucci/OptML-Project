@@ -1,5 +1,4 @@
-"""pytorchlightning_example: A Flower / PyTorch Lightning app.
-
+"""
 This module defines the server-side logic for federated learning experiments
 using PyTorch Lightning and Flower. It includes the server function that
 initializes the global model, handles optional warmup on shared data, 

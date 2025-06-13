@@ -1,3 +1,9 @@
+"""
+This module provides a simple convolutional neural network (CNN) architecture,
+along with training, validation, and test steps using PyTorch Lightning's API.
+It also sets up metric collections for accuracy tracking during federated learning
+experiments.
+"""
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F

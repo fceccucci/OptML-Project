@@ -1,6 +1,4 @@
 """
-dataset_factory.py
-
 Utilities to load a vision dataset once, partition it into
 client-specific subsets (IID or Dirichlet non-IID) and return a list of
 DataLoaders so Flower can simulate “virtual clients” on a single machine.

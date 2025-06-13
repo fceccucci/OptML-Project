@@ -1,3 +1,7 @@
+"""
+Defines the CustomServer class, a Flower Server subclass that logs federated learning
+metrics to Weights & Biases (wandb) during training and evaluation.
+"""
 import os, sys
 sys.path.insert(0, os.getcwd())
 

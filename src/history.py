@@ -1,3 +1,7 @@
+"""
+his module provides a custom Flower History class that logs federated learning
+metrics to Weights & Biases (wandb) during training and evaluation.
+"""
 from flwr.server.history import History
 import wandb
 from flwr.common.typing import Scalar

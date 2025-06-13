@@ -1,7 +1,3 @@
-Your README is already very well structured and informative. Here's a refined version with minor improvements in clarity, formatting, consistency, and wording to make it even more professional and polished:
-
----
-
 # Federated Learning with PyTorch Lightning and Flower
 
 This project simulates **Federated Learning (FL)** using the [Flower](https://flower.dev/) framework and [PyTorch Lightning](https://www.pytorchlightning.ai/). It supports multiple FL strategies (e.g., FedAvg, FedYogi, FedAdam, FedProx, FedAvgM) and allows experimentation with non-IID data distributions via configurable YAML files for models, datasets, and algorithms.
@@ -125,7 +121,3 @@ Configured in YAML via `algorithm.name`.
   * Reduce `num_clients`
   * Use smaller datasets (e.g., `FakeData`)
   * Lower `local_epochs` or enable CPU-only simulation
-
----
-
-If you'd like, I can push this directly to your GitHub README.md file or provide a downloadable `.md`. Want that?
